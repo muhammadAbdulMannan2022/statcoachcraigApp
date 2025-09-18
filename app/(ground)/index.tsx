@@ -1,4 +1,6 @@
 import TopPart from "@/components/GroundsPard/TopPart";
+import LeftSidebar from "@/components/TeamActions/LeftSideBar";
+import RightSidebar from "@/components/TeamActions/RightSidebar";
 import CustomDropdown from "@/components/teamStratagy/TeamStratagy";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +11,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function index() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null);
+
+  // sidebars
+  const [isLeftSideBarOpen, setIsLeftSideBarOpen] = useState(false);
+  const [isRightSideBarOpen, setIsRightSideBarOpen] = useState(false);
 
   const QuaterData = [
     { label: "Quarter 1", value: "Q1" },
@@ -25,16 +31,18 @@ export default function index() {
     console.log("User clicked:", item);
     setSelectedQuarter(item.value);
   };
+
   return (
     <View className="flex-1 w-full h-full">
       <LinearGradient
         className="flex-1 w-full h-full"
         colors={["#101A10", "#324E33"]}
       >
-        <SafeAreaView>
+        {/* Main content area wrapped in SafeAreaView */}
+        <SafeAreaView className="flex-1">
           {/* top part of the ground */}
           <TopPart />
-          {/* left team */}
+          {/* left team dropdown */}
           <View className="absolute top-[100px] left-0">
             <CustomDropdown
               items={QuaterData}
@@ -45,7 +53,7 @@ export default function index() {
               alignment="left"
             />
           </View>
-          {/* right team */}
+          {/* right team dropdown */}
           <View className="absolute top-[100px] right-0">
             <CustomDropdown
               items={QuaterData}
@@ -57,6 +65,21 @@ export default function index() {
             />
           </View>
         </SafeAreaView>
+
+        {/* Sidebars are rendered as siblings to SafeAreaView, but still within LinearGradient */}
+        {/* They will now correctly position themselves absolutely relative to the LinearGradient */}
+        <LeftSidebar
+          isOpen={isLeftSideBarOpen}
+          onClose={() => setIsLeftSideBarOpen(false)}
+          toggle={() => setIsLeftSideBarOpen((prev) => !prev)}
+          title="Left Menu"
+        />
+        <RightSidebar
+          isOpen={isRightSideBarOpen}
+          onClose={() => setIsRightSideBarOpen(false)}
+          toggle={() => setIsRightSideBarOpen((prev) => !prev)}
+          title="Right Menu"
+        />
       </LinearGradient>
       <StatusBar style="light" />
     </View>
