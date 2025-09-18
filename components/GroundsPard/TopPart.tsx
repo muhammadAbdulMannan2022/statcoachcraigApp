@@ -9,7 +9,7 @@ import { Dropdown } from "react-native-element-dropdown";
 export default function TopPart() {
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(0);
-  const [value, setValue] = useState(null);
+  const [value, setValue] = useState("Q1");
   const QuaterData = [
     { label: "Quarter 1", value: "Q1" },
     { label: "Quarter 2", value: "Q2" },
