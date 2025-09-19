@@ -2,32 +2,70 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Octicons from "@expo/vector-icons/Octicons";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 
-export default function TopPart() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(0);
-  const [value, setValue] = useState("Q1");
+// isRunning={isRunning} setIsRunning={setIsRunning} value={activeQuater} setValue={setActiveQuater} time={timer} setTime={setTimer}
+interface PropIntrface {
+  isRunning: boolean;
+  setIsRunning: (data: any) => void;
+  value: "1" | "2" | "3" | "4";
+  setValue: (data: any) => void;
+  time: any;
+  setTime: (data: any) => void;
+}
+
+export default function TopPart({
+  isRunning,
+  setIsRunning,
+  value,
+  setValue,
+  time,
+  setTime,
+}: PropIntrface) {
   const QuaterData = [
-    { label: "Quarter 1", value: "Q1" },
-    { label: "Quarter 2", value: "Q2" },
-    { label: "Quarter 3", value: "Q3" },
-    { label: "Quarter 4", value: "Q4" },
+    { label: "Quarter 1", value: "1" },
+    { label: "Quarter 2", value: "2" },
+    { label: "Quarter 3", value: "3" },
+    { label: "Quarter 4", value: "4" },
   ];
   // Toggle play/pause
-  const toggleTimer = () => setIsRunning(!isRunning);
+  const toggleTimer = () => {
+    if (isRunning) {
+      console.log("next quater pz", "current q info", value, time);
+      setValue((prev: any) => {
+        const prevC = Number(prev);
+        if (prevC < 4) {
+          return String(prevC + 1);
+        } else {
+          // open modal Game done reset or view full report
+        }
+      });
+      setIsRunning(false);
+      setTime(0);
+    } else {
+      setIsRunning(true);
+    }
+  };
 
   useEffect(() => {
     let interval: any;
     if (isRunning) {
       interval = setInterval(() => {
-        setTime((prev) => prev + 1); // increment seconds
+        setTime((prev: any) => prev + 1); // increment seconds
       }, 1000);
     }
     return () => clearInterval(interval);
   }, [isRunning]);
+
+  // change quater dropdown value
+  const changeQuaterDropdownValue = (item: any) => {
+    setIsRunning(false);
+    setTime(0);
+    console.log("next quater pz", "current q info", value, time);
+    setValue(item.value);
+  };
 
   // Convert seconds to HH:MM:SS
   const formatTime = (seconds: number) => {
@@ -46,19 +84,19 @@ export default function TopPart() {
   return (
     <View className="w-full">
       <View className="px-[3%] flex-row justify-between items-center">
-        <View className="flex-row items-center gap-3">
+        <View className="flex-row items-center gap-3 w-[25%]">
           <AntDesign name="arrowleft" size={24} color="#fff" />
           <Text className="text-white">Game Schedules</Text>
         </View>
 
-        <View className="flex-row items-center justify-between p-2 bg-white rounded-full px-4 gap-5">
+        <View className="flex-row items-center justify-between p-2 bg-[#F8F8FA] rounded-full px-4 gap-5">
           <View className="w-36 bg-[#EAEAF0] text-center py-2 px-4 rounded-full justify-start">
             <Dropdown
               data={QuaterData}
               labelField="label"
               valueField="value"
               value={value}
-              onChange={(item) => setValue(item.value)}
+              onChange={(item) => changeQuaterDropdownValue(item)}
               containerStyle={{
                 borderWidth: 1,
                 borderColor: "#ccc",
@@ -102,8 +140,10 @@ export default function TopPart() {
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row items-center gap-3">
-          <Text className="text-white">Start Quarter</Text>
+        <View className="flex-row items-center gap-3 w-[25%] justify-end">
+          <Text className="text-white">
+            {isRunning ? "End Quater" : "Start Quarter"}
+          </Text>
           <TouchableOpacity onPress={toggleTimer}>
             <FontAwesome
               name={isRunning ? "pause-circle" : "play-circle"}

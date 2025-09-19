@@ -5,7 +5,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import "../global.css";
-import SplashScreen from "./SplashScreen";
 
 export default function RootLayout() {
   const [splash, setSplash] = useState(true);
@@ -25,7 +24,8 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      {splash ? <SplashScreen /> : <Slot />}
+      {/* {splash ? <SplashScreen /> : <Slot />} */}
+      <Slot />
       <StatusBar style="auto" />
     </ThemeProvider>
   );
