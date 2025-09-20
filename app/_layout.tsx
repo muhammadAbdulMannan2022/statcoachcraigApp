@@ -1,9 +1,11 @@
+import { store } from "@/redux/store";
 import { DarkTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
+import { Provider } from "react-redux";
 import "../global.css";
 
 export default function RootLayout() {
@@ -24,8 +26,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      {/* {splash ? <SplashScreen /> : <Slot />} */}
-      <Slot />
+      <Provider store={store}>
+        {/* {splash ? <SplashScreen /> : <Slot />} */}
+        <Slot />
+      </Provider>
       <StatusBar style="auto" />
     </ThemeProvider>
   );
