@@ -2,18 +2,18 @@ import AntDesign from "@expo/vector-icons/AntDesign";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Octicons from "@expo/vector-icons/Octicons";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
+import AppModal from "../ui/Modals/ModalScaliton";
 
-// isRunning={isRunning} setIsRunning={setIsRunning} value={activeQuater} setValue={setActiveQuater} time={timer} setTime={setTimer}
 interface PropIntrface {
   isRunning: boolean;
-  setIsRunning: (data: any) => void;
+  setIsRunning: (data: boolean) => void;
   value: "1" | "2" | "3" | "4";
-  setValue: (data: any) => void;
-  time: any;
-  setTime: (data: any) => void;
+  setValue: (data: "1" | "2" | "3" | "4") => void;
+  time: number;
+  setTime: React.Dispatch<React.SetStateAction<number>>;
 }
 
 export default function TopPart({
@@ -30,44 +30,81 @@ export default function TopPart({
     { label: "Quarter 3", value: "3" },
     { label: "Quarter 4", value: "4" },
   ];
+
+  const [pendingQuarter, setPendingQuarter] = useState<
+    "1" | "2" | "3" | "4" | null
+  >(null);
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [gameFinished, setGameFinished] = useState(false);
+  const [skipWarningVisible, setSkipWarningVisible] = useState(false); // New state for skip warning modal
+
   // Toggle play/pause
   const toggleTimer = () => {
     if (isRunning) {
-      console.log("next quater pz", "current q info", value, time);
-      setValue((prev: any) => {
-        const prevC = Number(prev);
-        if (prevC < 4) {
-          return String(prevC + 1);
-        } else {
-          // open modal Game done reset or view full report
-        }
-      });
       setIsRunning(false);
-      setTime(0);
+
+      const current = Number(value);
+      if (current < 4) {
+        setPendingQuarter(String(current + 1) as "1" | "2" | "3" | "4");
+        setConfirmVisible(true);
+      } else {
+        setGameFinished(true);
+      }
     } else {
-      setIsRunning(true);
+      setIsRunning(true); // resume
     }
   };
 
+  // Timer interval
   useEffect(() => {
     let interval: any;
     if (isRunning) {
-      interval = setInterval(() => {
-        setTime((prev: any) => prev + 1); // increment seconds
-      }, 1000);
+      interval = setInterval(() => setTime((prev) => prev + 1), 1000);
     }
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // change quater dropdown value
-  const changeQuaterDropdownValue = (item: any) => {
-    setIsRunning(false);
-    setTime(0);
-    console.log("next quater pz", "current q info", value, time);
-    setValue(item.value);
+  // Handle dropdown change
+  const changeQuarterDropdownValue = (item: {
+    value: "1" | "2" | "3" | "4";
+    label: string;
+  }) => {
+    const current = Number(value);
+    const next = Number(item.value);
+
+    if (next > current + 1) {
+      console.log("❌ Can't skip quarters");
+      setSkipWarningVisible(true); // Show warning modal for skipping quarters
+      return;
+    }
+    if (next < current) {
+      console.log("❌ Can't go back to previous quarter");
+      return;
+    }
+    if (current === 4) {
+      setGameFinished(true);
+      return;
+    }
+
+    setPendingQuarter(item.value);
+    setConfirmVisible(true);
+
+    // Reset dropdown to current value to prevent skipping
+    setValue(value);
   };
 
-  // Convert seconds to HH:MM:SS
+  // Confirm quarter change
+  const confirmChangeQuarter = () => {
+    if (pendingQuarter) {
+      setTime(0); // reset timer only after confirmation
+      setValue(pendingQuarter);
+      console.log("✅ Moved to quarter:", pendingQuarter);
+    }
+    setConfirmVisible(false);
+    setPendingQuarter(null);
+  };
+
+  // Format seconds to HH:MM:SS
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600)
       .toString()
@@ -96,7 +133,7 @@ export default function TopPart({
               labelField="label"
               valueField="value"
               value={value}
-              onChange={(item) => changeQuaterDropdownValue(item)}
+              onChange={changeQuarterDropdownValue}
               containerStyle={{
                 borderWidth: 1,
                 borderColor: "#ccc",
@@ -109,12 +146,10 @@ export default function TopPart({
               }}
               itemTextStyle={{ color: "#2D8609" }}
               iconColor="#2D8609"
-              selectedTextStyle={{
-                color: "#2D8609",
-                fontWeight: "bold",
-              }}
+              selectedTextStyle={{ color: "#2D8609", fontWeight: "bold" }}
             />
           </View>
+
           <View className="flex-row items-center gap-4">
             <TouchableOpacity className="items-center flex-row gap-2">
               <Text className="text-[#2D8609] text-sm font-bold">Undo</Text>
@@ -133,6 +168,7 @@ export default function TopPart({
               <Text className="text-[#2D8609] text-sm font-bold">Redo</Text>
             </TouchableOpacity>
           </View>
+
           <TouchableOpacity className="bg-[#2D8609] px-4 py-2 rounded-full">
             <Text className="text-white text-base font-semibold">
               Generate Report
@@ -142,7 +178,7 @@ export default function TopPart({
 
         <View className="flex-row items-center gap-3 w-[25%] justify-end">
           <Text className="text-white">
-            {isRunning ? "End Quater" : "Start Quarter"}
+            {isRunning ? "End Quarter" : "Start Quarter"}
           </Text>
           <TouchableOpacity onPress={toggleTimer}>
             <FontAwesome
@@ -157,6 +193,91 @@ export default function TopPart({
           </View>
         </View>
       </View>
+
+      {/* Confirm Modal */}
+      <AppModal
+        visible={confirmVisible}
+        onClose={() => setConfirmVisible(false)}
+      >
+        <View className="items-center">
+          <Text className="text-lg font-bold mb-4">
+            Move to Quarter {pendingQuarter}?
+          </Text>
+          <Text className="text-gray-600 mb-6 text-center">
+            The current quarter will end and the timer will reset.
+          </Text>
+          <View className="flex-row gap-4">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg border border-gray-400"
+              onPress={() => setConfirmVisible(false)}
+            >
+              <Text className="text-gray-600">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg"
+              style={{ backgroundColor: "#2D8609" }}
+              onPress={confirmChangeQuarter}
+            >
+              <Text className="text-white">Yes, Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AppModal>
+
+      {/* Skip Quarter Warning Modal */}
+      <AppModal
+        visible={skipWarningVisible}
+        onClose={() => setSkipWarningVisible(false)}
+      >
+        <View className="items-center">
+          <Text className="text-lg font-bold mb-4 text-red-600">
+            Cannot Skip Quarters
+          </Text>
+          <Text className="text-gray-600 mb-6 text-center">
+            You cannot skip quarters. Please select the next quarter (Quarter{" "}
+            {Number(value) + 1}).
+          </Text>
+          <View className="flex-row gap-4">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg border border-gray-400"
+              onPress={() => setSkipWarningVisible(false)}
+            >
+              <Text className="text-gray-600">Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AppModal>
+
+      {/* Game Finished Modal */}
+      <AppModal visible={gameFinished} onClose={() => setGameFinished(false)}>
+        <View className="items-center">
+          <Text className="text-lg font-bold mb-4">Game Finished</Text>
+          <Text className="text-gray-600 mb-6 text-center">
+            All four quarters are complete. You can reset the game or generate
+            the full report.
+          </Text>
+          <View className="flex-row gap-4">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg border border-gray-400"
+              onPress={() => {
+                setGameFinished(false);
+                setValue("1");
+                setTime(0);
+                setIsRunning(false);
+              }}
+            >
+              <Text className="text-gray-600">Reset Game</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg"
+              style={{ backgroundColor: "#2D8609" }}
+              onPress={() => console.log("Generate Report")}
+            >
+              <Text className="text-white">Generate Report</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AppModal>
     </View>
   );
 }
