@@ -56,6 +56,9 @@ export default function Index() {
   const [isRightSideBarOpen, setIsRightSideBarOpen] = useState(false);
   const [wayOfKick, setWayOfKick] = useState("");
   const [clicks, setClicks] = useState<ClickEvent[]>([]);
+  const [quarteredClicks, setQuarteredClicks] = useState<
+    { quarter: "1" | "2" | "3" | "4"; clicks: ClickEvent[] }[]
+  >([]);
   const [pendingClickIndex, setPendingClickIndex] = useState<number | null>(
     null
   );
@@ -98,6 +101,20 @@ export default function Index() {
     pendingLineClick,
     setPendingLineClick
   );
+
+  // Archive current clicks into quarteredClicks before clearing history
+  const clearAndArchive = useCallback(() => {
+    try {
+      setQuarteredClicks((prev) => [
+        ...prev,
+        { quarter: activeQuater, clicks: clicks.slice() },
+      ]);
+    } catch (err) {
+      console.log("Error archiving clicks:", err);
+    }
+    // Clear history and related state
+    clearHistory();
+  }, [activeQuater, clicks, clearHistory]);
 
   // Detect excessive renders
   renderCount.current += 1;
@@ -599,23 +616,37 @@ export default function Index() {
   );
 
   const svgCircles = useMemo(() => {
-    const dotsToRender = showAllDots ? clicks.slice(0, 100) : clicks.slice(-1);
-    return dotsToRender.map((click, index) => (
+    // Build the set of dots to render. When showing all dots, include
+    // archived (quartered) clicks as well as current clicks.
+    let dotsToRender: ClickEvent[] = [];
+    if (showAllDots) {
+      const archived = quarteredClicks
+        .slice(-3) // limit to last 3 archived quarters
+        .reduce((acc, q) => acc.concat(q.clicks), [] as ClickEvent[]);
+      dotsToRender = [...archived, ...clicks];
+    } else {
+      dotsToRender = clicks.slice(-1);
+    }
+
+    const limited = dotsToRender.slice(-200); // cap rendering
+
+    return limited.map((click, index) => (
       <Circle
-        key={clicks.length - dotsToRender.length + index}
+        key={index}
         cx={click.position.x}
         cy={click.position.y}
-        r={dotsToRender.length > 1 ? 25 : 5}
+        r={limited.length > 1 ? 25 : 5}
         fill={
-          dotsToRender.length > 1
+          limited.length > 1
             ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
             : click.isComplete
               ? "red"
               : "orange"
         }
+        opacity={0.9}
       />
     ));
-  }, [clicks, showAllDots]);
+  }, [clicks, showAllDots, quarteredClicks]);
 
   const svgLine = useMemo(() => {
     if (!currentLine) return null;
@@ -651,9 +682,11 @@ export default function Index() {
             setWayOfKick={setWayOfKick}
             clicks={clicks}
             setClicks={setClicks}
-            clearHistory={clearHistory}
+            clearHistory={clearAndArchive}
             setWornNextQ={setWornNextQ}
             updateHistory={updateHistory}
+            setShowAllDots={setShowAllDots}
+            showAllDots={showAllDots}
           />
           {wayOfKick == "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">
@@ -755,14 +788,14 @@ export default function Index() {
             >
               <Text className="text-white font-semibold">Redo</Text>
             </TouchableOpacity> */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={() => setShowAllDots(!showAllDots)}
               className="bg-[#2D8609] px-4 py-2 rounded-full"
             >
               <Text className="text-white font-semibold">
                 {showAllDots ? "Show Last Dot" : "Show All Dots"}
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
           <View className="absolute top-[100px] left-0">
             <CustomDropdown

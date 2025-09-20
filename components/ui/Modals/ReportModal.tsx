@@ -25,6 +25,7 @@ type Props = {
   data?: { data?: DataItem[] } | DataItem[];
   isLoading: boolean;
   onStrategySelect: (filteredData: DataItem[]) => void; // New callback prop
+  setShowAllDots: any;
 };
 
 export default function StrategyModal({
@@ -33,6 +34,7 @@ export default function StrategyModal({
   data,
   isLoading,
   onStrategySelect,
+  setShowAllDots,
 }: Props) {
   // Normalize and aggregate data
   const aggregated = useMemo(() => {
@@ -63,6 +65,7 @@ export default function StrategyModal({
     console.log(`Filtered data for strategy "${strategy}":`, filteredData);
     onStrategySelect(filteredData); // Pass filtered data to parent
     onClose();
+    setShowAllDots(true);
   };
 
   const renderRow = ({

@@ -41,6 +41,8 @@ interface PropIntrface {
   setWornNextQ: (data: boolean) => void;
   setClicks: (data: any) => void;
   updateHistory: any;
+  setShowAllDots: any;
+  showAllDots: any;
 }
 
 export default function TopPart({
@@ -59,6 +61,8 @@ export default function TopPart({
   setWornNextQ,
   setClicks,
   updateHistory,
+  setShowAllDots,
+  showAllDots,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
@@ -242,6 +246,10 @@ export default function TopPart({
 
   // Submit quarter data
   const handleSubmitQuarterData = async () => {
+    if (showAllDots) {
+      // Skip database submission
+      return true;
+    }
     if (time === 0) {
       setSubmitError("Cannot submit quarter with time 00:00:00");
       setSkipWarningVisible(true);
@@ -354,6 +362,7 @@ export default function TopPart({
       setWayOfKick("");
       setTime(0);
       clearHistory();
+      setShowAllDots(false); // Add this line
       console.log("✅ Moved to quarter:", pendingQuarter);
     }
     setQuarterReportVisible(false);
@@ -647,6 +656,7 @@ export default function TopPart({
             setReportQuarter(null);
           }}
           onStrategySelect={handleStrategySelect} // Pass callback
+          setShowAllDots={setShowAllDots}
         />
       )}
     </View>
