@@ -650,8 +650,10 @@ export default function Index() {
             wayOfKick={wayOfKick}
             setWayOfKick={setWayOfKick}
             clicks={clicks}
+            setClicks={setClicks}
             clearHistory={clearHistory}
             setWornNextQ={setWornNextQ}
+            updateHistory={updateHistory}
           />
           {wayOfKick == "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">

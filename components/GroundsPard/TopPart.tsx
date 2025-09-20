@@ -1,4 +1,5 @@
 import {
+  useGetGameDataQuery,
   useGetQuaterDataQuery,
   useSendQuaterDataMutation,
 } from "@/redux/apis/api";
@@ -14,6 +15,16 @@ import { Dropdown } from "react-native-element-dropdown";
 import AppModal from "../ui/Modals/ModalScaliton";
 import StrategyModal from "../ui/Modals/ReportModal";
 
+interface ClickEvent {
+  position: { x: number; y: number };
+  type: "ellipse" | "ellipse left" | "ellipse right";
+  team: string;
+  item: string;
+  time: string;
+  isComplete: boolean;
+  pairId?: number;
+}
+
 interface PropIntrface {
   isRunning: boolean;
   setIsRunning: (data: boolean) => void;
@@ -25,9 +36,11 @@ interface PropIntrface {
   redo: () => void;
   wayOfKick: string;
   setWayOfKick: (data: "" | "left" | "right") => void;
-  clicks: any;
+  clicks: ClickEvent[];
   clearHistory: () => void;
   setWornNextQ: (data: boolean) => void;
+  setClicks: (data: any) => void;
+  updateHistory: any;
 }
 
 export default function TopPart({
@@ -44,6 +57,8 @@ export default function TopPart({
   clicks,
   clearHistory,
   setWornNextQ,
+  setClicks,
+  updateHistory,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
@@ -76,6 +91,11 @@ export default function TopPart({
   } = useGetQuaterDataQuery(
     game_id && reportQuarter ? { game_id, quater_id: reportQuarter } : skipToken
   );
+  const {
+    data: gameData,
+    isLoading: isGameDataLoading,
+    error: gameDataError,
+  } = useGetGameDataQuery(game_id ?? skipToken);
 
   // Log query state for debugging
   useEffect(() => {
@@ -87,9 +107,48 @@ export default function TopPart({
       "error:",
       quaterDataError
     );
-  }, [quaterData, isQuaterDataLoading, quaterDataError]);
+    console.log(
+      "gameData:",
+      gameData,
+      "isLoading:",
+      isGameDataLoading,
+      "error:",
+      gameDataError
+    );
+  }, [
+    quaterData,
+    isQuaterDataLoading,
+    quaterDataError,
+    gameData,
+    isGameDataLoading,
+    gameDataError,
+  ]);
 
-  // Fetch game report for the specified quarter
+  // Process game data to flatten all quarters into a single array
+  const processGameData = (data: any) => {
+    if (!data || !data.data) return { data: [] };
+
+    const allQuarters = [
+      ...(data.data.quarter_a || []),
+      ...(data.data.quarter_b || []),
+      ...(data.data.quarter_c || []),
+      ...(data.data.quarter_d || []),
+    ];
+
+    return { data: allQuarters };
+  };
+
+  // Handle filtered data from StrategyModal
+  const handleStrategySelect = (filteredData: any[]) => {
+    // If DataItem and ClickEvent are structurally compatible, you can cast:
+    const clickEvents = filteredData as ClickEvent[];
+    clearHistory(); // Clear existing history to start fresh
+    setClicks(clickEvents); // Update clicks state
+    updateHistory(clickEvents); // Assuming filtered data is complete
+    console.log("Clicks updated with filtered data:", clickEvents);
+  };
+
+  // Fetch game report for the specified quarter or final report
   const handleGetGameReport = async (quarter: "1" | "2" | "3" | "4") => {
     try {
       const id = await SecureStore.getItemAsync("game_id");
@@ -112,10 +171,23 @@ export default function TopPart({
           default:
             quater_id = "a"; // Fallback
         }
-        setReportQuarter(quater_id);
-        // Wait for query to complete before opening modal
-        if (!isQuaterDataLoading && quaterData && !quaterDataError) {
-          setReportVisible(true);
+        setReportQuarter(quarter === "4" ? null : quater_id);
+        if (quarter === "4") {
+          if (!isGameDataLoading && gameData && !gameDataError) {
+            const processedData = processGameData(gameData);
+            setReportVisible(true);
+            console.log("Processed Game Data:", processedData);
+          } else if (gameDataError) {
+            setSubmitError("Failed to load game data");
+            setSkipWarningVisible(true);
+          }
+        } else {
+          if (!isQuaterDataLoading && quaterData && !quaterDataError) {
+            setReportVisible(true);
+          } else if (quaterDataError) {
+            setSubmitError("Failed to load quarter data");
+            setSkipWarningVisible(true);
+          }
         }
       } else {
         setSubmitError("No game ID found");
@@ -135,9 +207,17 @@ export default function TopPart({
     }
   }, [game_id, reportQuarter, refetch]);
 
-  // Open StrategyModal when quaterData is ready
+  // Open StrategyModal when data is ready
   useEffect(() => {
     if (
+      game_id &&
+      !isGameDataLoading &&
+      gameData &&
+      !gameDataError &&
+      !reportQuarter
+    ) {
+      setReportVisible(true);
+    } else if (
       game_id &&
       reportQuarter &&
       !isQuaterDataLoading &&
@@ -145,14 +225,17 @@ export default function TopPart({
       !quaterDataError
     ) {
       setReportVisible(true);
-    } else if (quaterDataError) {
-      setSubmitError("Failed to load quarter data");
+    } else if (quaterDataError || gameDataError) {
+      setSubmitError("Failed to load data");
       setSkipWarningVisible(true);
     }
   }, [
     quaterData,
     isQuaterDataLoading,
     quaterDataError,
+    gameData,
+    isGameDataLoading,
+    gameDataError,
     game_id,
     reportQuarter,
   ]);
@@ -552,13 +635,18 @@ export default function TopPart({
       {/* Report Modal */}
       {isReportVisible && (
         <StrategyModal
-          isLoading={isQuaterDataLoading}
-          data={quaterData || []} // Fallback to empty array
+          isLoading={reportQuarter ? isQuaterDataLoading : isGameDataLoading}
+          data={
+            reportQuarter
+              ? quaterData || []
+              : processGameData(gameData) || { data: [] }
+          }
           visible={isReportVisible}
           onClose={() => {
             setReportVisible(false);
             setReportQuarter(null);
           }}
+          onStrategySelect={handleStrategySelect} // Pass callback
         />
       )}
     </View>
