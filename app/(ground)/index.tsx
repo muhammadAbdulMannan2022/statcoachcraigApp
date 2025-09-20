@@ -3,6 +3,7 @@ import LeftSidebar from "@/components/TeamActions/LeftSideBar";
 import RightSidebar from "@/components/TeamActions/RightSidebar";
 import CustomDropdown from "@/components/teamStratagy/TeamStratagy";
 import AppModal from "@/components/ui/Modals/ModalScaliton";
+import { useHistory } from "@/hooks/useHistory";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -63,10 +64,17 @@ export default function Index() {
   const [showAllDots, setShowAllDots] = useState(false);
   const [wornNextQ, setWornNextQ] = useState(true);
   const [team] = useState(["Script HQ", "Script RH"]);
-  const [clickHistory, setClickHistory] = useState<ClickEvent[][]>([[]]);
-  const [historyIndex, setHistoryIndex] = useState(0);
   const pairIdCounter = useRef(0);
   const renderCount = useRef(0);
+
+  // Initialize useHistory hook
+  const { updateHistory, undo, redo } = useHistory(
+    clicks,
+    setClicks,
+    setCurrentLine,
+    pendingLineClick,
+    setPendingLineClick
+  );
 
   // Detect excessive renders
   renderCount.current += 1;
@@ -130,18 +138,6 @@ export default function Index() {
       return (x - cx) ** 2 / rx ** 2 + (y - cy) ** 2 / ry ** 2 <= 1;
     },
     []
-  );
-
-  const updateHistory = useCallback(
-    (newClicks: ClickEvent[]) => {
-      setClickHistory((prev) => {
-        const newHistory = prev.slice(0, historyIndex + 1);
-        newHistory.push(newClicks);
-        return newHistory;
-      });
-      setHistoryIndex((prev) => prev + 1);
-    },
-    [historyIndex]
   );
 
   const assignTeamToPendingPairs = useCallback(
@@ -221,7 +217,7 @@ export default function Index() {
             isComplete: false,
             pairId: pendingLineClick.pairId,
           });
-          updateHistory(updatedClicks);
+          // Defer updateHistory until team selection
           console.log("Second click for Inside 50:", {
             x: locationX,
             y: locationY,
@@ -245,7 +241,7 @@ export default function Index() {
           console.log("Adding ellipse click:", newClick);
           const updatedClicks = [...prev, newClick];
           setPendingClickIndex(updatedClicks.length - 1);
-          updateHistory(updatedClicks);
+          // Defer updateHistory until team selection
           return updatedClicks;
         });
         setIsLeftDropdownOpen(true);
@@ -253,14 +249,7 @@ export default function Index() {
       }
       console.timeEnd("DotPlacement");
     },
-    [
-      pendingClickIndex,
-      pendingLineClick,
-      timer,
-      formatTime,
-      clicks,
-      updateHistory,
-    ]
+    [pendingClickIndex, pendingLineClick, timer, formatTime, clicks]
   );
 
   const handleLeftCircleClick = useCallback(
@@ -330,7 +319,7 @@ export default function Index() {
               y: locationY,
             });
             const updatedClicks = [...prev, newClick];
-            updateHistory(updatedClicks);
+            // Defer updateHistory until team selection
             return updatedClicks;
           });
         } else {
@@ -353,7 +342,7 @@ export default function Index() {
               isComplete: false,
               pairId: pendingLineClick.pairId,
             });
-            updateHistory(updatedClicks);
+            // Defer updateHistory until team selection
             console.log("Second click for Inside 50:", {
               x: locationX,
               y: locationY,
@@ -381,7 +370,6 @@ export default function Index() {
       ellipseRy,
       isPointInEllipse,
       clicks,
-      updateHistory,
     ]
   );
 
@@ -452,7 +440,7 @@ export default function Index() {
               y: locationY,
             });
             const updatedClicks = [...prev, newClick];
-            updateHistory(updatedClicks);
+            // Defer updateHistory until team selection
             return updatedClicks;
           });
         } else {
@@ -475,7 +463,7 @@ export default function Index() {
               isComplete: false,
               pairId: pendingLineClick.pairId,
             });
-            updateHistory(updatedClicks);
+            // Defer updateHistory until team selection
             console.log("Second click for Inside 50:", {
               x: locationX,
               y: locationY,
@@ -503,7 +491,6 @@ export default function Index() {
       ellipseRy,
       isPointInEllipse,
       clicks,
-      updateHistory,
     ]
   );
 
@@ -543,7 +530,8 @@ export default function Index() {
           item: item.value,
           time: updatedClicks[pendingClickIndex]?.time,
         });
-        updateHistory(updatedClicks);
+        // Save to history only when action is complete
+        updateHistory(updatedClicks, true);
         return updatedClicks;
       });
       setCurrentLine((prev) => (prev ? { ...prev, isComplete: true } : null));
@@ -555,10 +543,24 @@ export default function Index() {
     [pendingClickIndex, updateHistory, assignTeamToPendingPairs]
   );
 
-  const sidebarItems = useMemo(
+  const leftSidebarItems = useMemo(
     () =>
       clicks
-        .filter((click) => click.isComplete)
+        .filter((click) => click.isComplete && click.team === "Script HQ")
+        .map((click) => ({
+          time: click.time,
+          action:
+            QuaterData.find((item) => item.value === click.item)?.label ||
+            click.item,
+          team: click.team,
+        })),
+    [clicks, QuaterData]
+  );
+
+  const rightSidebarItems = useMemo(
+    () =>
+      clicks
+        .filter((click) => click.isComplete && click.team === "Script RH")
         .map((click) => ({
           time: click.time,
           action:
@@ -616,6 +618,8 @@ export default function Index() {
             setValue={setActiveQuater}
             time={timer}
             setTime={setTimer}
+            undo={undo}
+            redo={redo}
           />
           {wayOfKick === "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">
@@ -698,17 +702,28 @@ export default function Index() {
               )}
             </ImageBackground>
           </View>
-          <TouchableOpacity
-            onPress={() => {
-              console.log(clicks);
-              setShowAllDots(!showAllDots);
-            }}
-            className="bg-[#2D8609] px-4 py-2 rounded-full absolute bottom-4"
-          >
-            <Text className="text-white font-semibold">
-              {showAllDots ? "Show Last Dot" : "Show All Dots"}
-            </Text>
-          </TouchableOpacity>
+          <View className="flex-row gap-4 absolute bottom-4">
+            <TouchableOpacity
+              onPress={undo}
+              className="bg-[#2D8609] px-4 py-2 rounded-full"
+            >
+              <Text className="text-white font-semibold">Undo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={redo}
+              className="bg-[#2D8609] px-4 py-2 rounded-full"
+            >
+              <Text className="text-white font-semibold">Redo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowAllDots(!showAllDots)}
+              className="bg-[#2D8609] px-4 py-2 rounded-full"
+            >
+              <Text className="text-white font-semibold">
+                {showAllDots ? "Show Last Dot" : "Show All Dots"}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <View className="absolute top-[100px] left-0">
             <CustomDropdown
               items={QuaterData}
@@ -739,12 +754,14 @@ export default function Index() {
           onClose={() => setIsLeftSideBarOpen(false)}
           toggle={() => setIsLeftSideBarOpen((prev) => !prev)}
           title="Left Menu"
+          items={leftSidebarItems}
         />
         <RightSidebar
           isOpen={isRightSideBarOpen}
           onClose={() => setIsRightSideBarOpen(false)}
           toggle={() => setIsRightSideBarOpen((prev) => !prev)}
           title="Right Menu"
+          items={rightSidebarItems}
         />
       </LinearGradient>
       <StatusBar style="light" />

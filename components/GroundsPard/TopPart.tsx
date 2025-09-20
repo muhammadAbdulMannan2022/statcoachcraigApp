@@ -14,6 +14,8 @@ interface PropIntrface {
   setValue: (data: "1" | "2" | "3" | "4") => void;
   time: number;
   setTime: React.Dispatch<React.SetStateAction<number>>;
+  undo: () => void;
+  redo: () => void;
 }
 
 export default function TopPart({
@@ -23,6 +25,8 @@ export default function TopPart({
   setValue,
   time,
   setTime,
+  undo,
+  redo,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
@@ -151,7 +155,10 @@ export default function TopPart({
           </View>
 
           <View className="flex-row items-center gap-4">
-            <TouchableOpacity className="items-center flex-row gap-2">
+            <TouchableOpacity
+              onPress={undo}
+              className="items-center flex-row gap-2"
+            >
               <Text className="text-[#2D8609] text-sm font-bold">Undo</Text>
               <MaterialCommunityIcons
                 name="undo-variant"
@@ -159,7 +166,10 @@ export default function TopPart({
                 color="#2D8609"
               />
             </TouchableOpacity>
-            <TouchableOpacity className="items-center flex-row gap-2">
+            <TouchableOpacity
+              onPress={redo}
+              className="items-center flex-row gap-2"
+            >
               <MaterialCommunityIcons
                 name="redo-variant"
                 size={24}

@@ -14,6 +14,7 @@ interface SidebarProps {
   onClose: () => void;
   title?: string;
   toggle: () => void;
+  items: any;
 }
 
 const SIDEBAR_WIDTH = 250;
@@ -125,6 +126,7 @@ export default function RightSidebar({
   onClose,
   title,
   toggle,
+  items: data,
 }: SidebarProps) {
   const translateX = useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
 
