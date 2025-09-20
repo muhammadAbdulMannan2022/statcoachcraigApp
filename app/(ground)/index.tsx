@@ -6,14 +6,24 @@ import AppModal from "@/components/ui/Modals/ModalScaliton";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageBackground, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Circle, Ellipse } from "react-native-svg";
+import Svg, {
+  Circle,
+  Defs,
+  Ellipse,
+  RadialGradient,
+  Stop,
+} from "react-native-svg";
 
 interface ClickEvent {
   position: { x: number; y: number };
   type: "ellipse" | "ellipse left" | "ellipse right";
+  team: string;
+  item: string;
+  time: string;
+  isComplete: boolean;
 }
 
 export default function Index() {
@@ -21,123 +31,299 @@ export default function Index() {
   const [isRunning, setIsRunning] = useState(false);
   const [timer, setTimer] = useState(0);
   const [activeQuater, setActiveQuater] = useState<"1" | "2" | "3" | "4">("1");
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedQuarter, setSelectedQuarter] = useState<string | null>(null);
+  const [isLeftDropdownOpen, setIsLeftDropdownOpen] = useState(false);
+  const [isRightDropdownOpen, setIsRightDropdownOpen] = useState(false);
   const [isLeftSideBarOpen, setIsLeftSideBarOpen] = useState(false);
   const [isRightSideBarOpen, setIsRightSideBarOpen] = useState(false);
   const [wayOfKick, setWayOfKick] = useState("");
   const [clicks, setClicks] = useState<ClickEvent[]>([]);
+  const [pendingClickIndex, setPendingClickIndex] = useState<number | null>(
+    null
+  );
   const [showAllDots, setShowAllDots] = useState(false);
   const [wornNextQ, setWornNextQ] = useState(true);
+  const [team] = useState(["Script HQ", "Script RH"]);
+  const renderCount = useRef(0);
 
-  const QuaterData = [
-    { label: "Quarter 1", value: "Q1" },
-    { label: "Quarter 2", value: "Q2" },
-    { label: "Quarter 3", value: "Q3" },
-    { label: "Quarter 4", value: "Q4" },
-  ];
+  // Detect excessive renders
+  renderCount.current += 1;
+  useEffect(() => {
+    if (renderCount.current > 100) {
+      console.warn("Excessive renders detected:", renderCount.current);
+      renderCount.current = 0;
+      // Uncomment to halt execution for debugging
+      // throw new Error("Render loop detected. Check state updates.");
+    }
+  }, []);
 
-  const handleToggle = () => {
-    setIsOpen(!isOpen);
-  };
+  const QuaterData = useMemo(
+    () => [
+      { label: "Turn Over", value: "turn_over" },
+      { label: "Inside 50", value: "inside_50" },
+      { label: "Fumble", value: "fumble" },
+      { label: "Content", value: "content" },
+      { label: "Tackle", value: "tackle" },
+    ],
+    []
+  );
 
-  const handleItemClick = (item: { label: string; value: string }) => {
-    console.log("User clicked:", item);
-    setSelectedQuarter(item.value);
-  };
-
-  const handleLayout = (event: any) => {
+  const handleLayout = useCallback((event: any) => {
+    console.time("Layout");
     const { width, height } = event.nativeEvent.layout;
-    setParentSize({ width, height });
-  };
+    setParentSize((prev) => {
+      if (prev.width !== width || prev.height !== height) {
+        console.log("Layout updated:", { width, height });
+        return { width, height };
+      }
+      return prev;
+    });
+    console.timeEnd("Layout");
+  }, []);
 
-  const svgSize = parentSize.height > 0 ? parentSize.height : 200;
-  const ellipseRx = svgSize * 0.4;
-  const ellipseRy = svgSize * 0.25;
+  const svgSize = useMemo(
+    () => (parentSize.height > 0 ? parentSize.height : 200),
+    [parentSize.height]
+  );
+  const ellipseRx = useMemo(() => svgSize * 0.4, [svgSize]);
+  const ellipseRy = useMemo(() => svgSize * 0.25, [svgSize]);
 
-  // Function to check if a point (x, y) lies within the ellipse
-  const isPointInEllipse = (
-    x: number,
-    y: number,
-    cx: number,
-    cy: number,
-    rx: number,
-    ry: number
-  ): boolean => {
-    setIsOpen(true);
-    // Ellipse equation: ((x - cx)^2 / rx^2) + ((y - cy)^2 / ry^2) <= 1
-    return (x - cx) ** 2 / rx ** 2 + (y - cy) ** 2 / ry ** 2 <= 1;
-  };
+  const formatTime = useCallback((seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }, []);
 
-  // Handle clicks on the ellipse (non-overlapping parts)
-  const handleEllipseClick = (e: any) => {
-    const { locationX, locationY } = e.nativeEvent;
-    setIsOpen(true);
-    const clickEvent: ClickEvent = {
-      position: { x: locationX, y: locationY },
-      type: "ellipse",
-    };
-    setClicks([...clicks, clickEvent]);
-    console.log(clickEvent);
-  };
+  const isPointInEllipse = useCallback(
+    (
+      x: number,
+      y: number,
+      cx: number,
+      cy: number,
+      rx: number,
+      ry: number
+    ): boolean => {
+      return (x - cx) ** 2 / rx ** 2 + (y - cy) ** 2 / ry ** 2 <= 1;
+    },
+    []
+  );
 
-  // Handle clicks on the left circle (only if overlapping with ellipse)
-  const handleLeftCircleClick = (e: any) => {
-    const { locationX, locationY } = e.nativeEvent;
-    const ellipseCx = svgSize;
-    const ellipseCy = svgSize / 2;
-    const adjustedRx = ellipseRx * 1.6;
-    const adjustedRy = ellipseRy * 1.7;
+  const handleEllipseClick = useCallback(
+    (e: any) => {
+      if (pendingClickIndex !== null) {
+        console.log(
+          "Please select an action from the dropdown before clicking again."
+        );
+        return;
+      }
+      console.time("DotPlacement");
+      const { locationX, locationY } = e.nativeEvent;
+      setClicks((prev) => {
+        const newClick: ClickEvent = {
+          position: { x: locationX, y: locationY },
+          type: "ellipse",
+          team: "",
+          item: "",
+          time: formatTime(timer),
+          isComplete: false,
+        };
+        console.log("Adding click:", newClick);
+        setPendingClickIndex(prev.length);
+        return [...prev, newClick];
+      });
+      setIsLeftDropdownOpen(true);
+      setIsRightDropdownOpen(true);
+      console.timeEnd("DotPlacement");
+    },
+    [pendingClickIndex, timer, formatTime]
+  );
 
-    if (
-      isPointInEllipse(
-        locationX,
-        locationY,
-        ellipseCx,
-        ellipseCy,
-        adjustedRx,
-        adjustedRy
-      )
-    ) {
-      const clickEvent: ClickEvent = {
-        position: { x: locationX, y: locationY },
-        type: "ellipse left",
-      };
-      setClicks([...clicks, clickEvent]);
-      console.log(clickEvent);
-    } else {
-      console.log("Left circle clicked outside ellipse overlap. Not counted.");
-    }
-  };
+  const handleLeftCircleClick = useCallback(
+    (e: any) => {
+      if (pendingClickIndex !== null) {
+        console.log(
+          "Please select an action from the dropdown before clicking again."
+        );
+        return;
+      }
+      const { locationX, locationY } = e.nativeEvent;
+      const ellipseCx = svgSize;
+      const ellipseCy = svgSize / 2;
+      const adjustedRx = ellipseRx * 1.6;
+      const adjustedRy = ellipseRy * 1.7;
 
-  // Handle clicks on the right circle (only if overlapping with ellipse)
-  const handleRightCircleClick = (e: any) => {
-    const { locationX, locationY } = e.nativeEvent;
-    const ellipseCx = svgSize;
-    const ellipseCy = svgSize / 2;
-    const adjustedRx = ellipseRx * 1.6;
-    const adjustedRy = ellipseRy * 1.7;
+      if (
+        isPointInEllipse(
+          locationX,
+          locationY,
+          ellipseCx,
+          ellipseCy,
+          adjustedRx,
+          adjustedRy
+        )
+      ) {
+        console.time("DotPlacement");
+        setClicks((prev) => {
+          const newClick: ClickEvent = {
+            position: { x: locationX, y: locationY },
+            type: "ellipse left",
+            team: "",
+            item: "",
+            time: formatTime(timer),
+            isComplete: false,
+          };
+          console.log("Adding click:", newClick);
+          setPendingClickIndex(prev.length);
+          return [...prev, newClick];
+        });
+        setIsLeftDropdownOpen(true);
+        setIsRightDropdownOpen(true);
+        console.timeEnd("DotPlacement");
+      } else {
+        console.log(
+          "Left circle clicked outside ellipse overlap. Not counted."
+        );
+      }
+    },
+    [
+      pendingClickIndex,
+      timer,
+      formatTime,
+      svgSize,
+      ellipseRx,
+      ellipseRy,
+      isPointInEllipse,
+    ]
+  );
 
-    if (
-      isPointInEllipse(
-        locationX,
-        locationY,
-        ellipseCx,
-        ellipseCy,
-        adjustedRx,
-        adjustedRy
-      )
-    ) {
-      const clickEvent: ClickEvent = {
-        position: { x: locationX, y: locationY },
-        type: "ellipse right",
-      };
-      setClicks([...clicks, clickEvent]);
-      console.log(clickEvent);
-    } else {
-      console.log("Right circle clicked outside ellipse overlap. Not counted.");
-    }
-  };
+  const handleRightCircleClick = useCallback(
+    (e: any) => {
+      if (pendingClickIndex !== null) {
+        console.log(
+          "Please select an action from the dropdown before clicking again."
+        );
+        return;
+      }
+      const { locationX, locationY } = e.nativeEvent;
+      const ellipseCx = svgSize;
+      const ellipseCy = svgSize / 2;
+      const adjustedRx = ellipseRx * 1.6;
+      const adjustedRy = ellipseRy * 1.7;
+
+      if (
+        isPointInEllipse(
+          locationX,
+          locationY,
+          ellipseCx,
+          ellipseCy,
+          adjustedRx,
+          adjustedRy
+        )
+      ) {
+        console.time("DotPlacement");
+        setClicks((prev) => {
+          const newClick: ClickEvent = {
+            position: { x: locationX, y: locationY },
+            type: "ellipse right",
+            team: "",
+            item: "",
+            time: formatTime(timer),
+            isComplete: false,
+          };
+          console.log("Adding click:", newClick);
+          setPendingClickIndex(prev.length);
+          return [...prev, newClick];
+        });
+        setIsLeftDropdownOpen(true);
+        setIsRightDropdownOpen(true);
+        console.timeEnd("DotPlacement");
+      } else {
+        console.log(
+          "Right circle clicked outside ellipse overlap. Not counted."
+        );
+      }
+    },
+    [
+      pendingClickIndex,
+      timer,
+      formatTime,
+      svgSize,
+      ellipseRx,
+      ellipseRy,
+      isPointInEllipse,
+    ]
+  );
+
+  const handleItemClick = useCallback(
+    (item: { label: string; value: string }, teamSelected: string) => {
+      if (pendingClickIndex === null) {
+        console.log("No pending click to associate with this selection.");
+        return;
+      }
+
+      console.time("ItemSelection");
+      setClicks((prevClicks) => {
+        const updatedClicks = prevClicks.map((click, index) =>
+          index === pendingClickIndex
+            ? {
+                ...click,
+                team: teamSelected,
+                item: item.value,
+                isComplete: true,
+              }
+            : click
+        );
+        console.log("Click event completed:", {
+          position: updatedClicks[pendingClickIndex]?.position,
+          type: updatedClicks[pendingClickIndex]?.type,
+          team: teamSelected,
+          item: item.value,
+          time: updatedClicks[pendingClickIndex]?.time,
+        });
+        return updatedClicks;
+      });
+      setPendingClickIndex(null);
+      setIsLeftDropdownOpen(false);
+      setIsRightDropdownOpen(false);
+      console.timeEnd("ItemSelection");
+    },
+    [pendingClickIndex]
+  );
+
+  const sidebarItems = useMemo(
+    () =>
+      clicks
+        .filter((click) => click.isComplete)
+        .map((click) => ({
+          time: click.time,
+          action:
+            QuaterData.find((item) => item.value === click.item)?.label ||
+            click.item,
+          team: click.team,
+        })),
+    [clicks, QuaterData]
+  );
+
+  const svgCircles = useMemo(() => {
+    const dotsToRender = showAllDots ? clicks.slice(0, 100) : clicks.slice(-1);
+    return dotsToRender.map((click, index) => (
+      <Circle
+        key={clicks.length - dotsToRender.length + index}
+        cx={click.position.x}
+        cy={click.position.y}
+        r={dotsToRender.length > 1 ? 25 : 5}
+        fill={
+          dotsToRender.length > 1
+            ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
+            : click.isComplete
+              ? "red"
+              : "orange"
+        }
+      />
+    ));
+  }, [clicks, showAllDots]);
 
   return (
     <View className="flex-1 w-full h-full">
@@ -184,6 +370,23 @@ export default function Index() {
             >
               {parentSize.height > 0 && (
                 <Svg width={svgSize * 2} height={svgSize}>
+                  <Defs>
+                    <RadialGradient id="redGradient" cx="50%" cy="50%" r="50%">
+                      <Stop offset="0" stopColor="red" stopOpacity="0.7" />
+                      <Stop offset="0.3" stopColor="yellow" stopOpacity="0.5" />
+                      <Stop offset="1" stopColor="yellow" stopOpacity="0" />
+                    </RadialGradient>
+                    <RadialGradient
+                      id="orangeGradient"
+                      cx="50%"
+                      cy="50%"
+                      r="50%"
+                    >
+                      <Stop offset="0" stopColor="orange" stopOpacity="0.7" />
+                      <Stop offset="0.3" stopColor="yellow" stopOpacity="0.5" />
+                      <Stop offset="1" stopColor="yellow" stopOpacity="0" />
+                    </RadialGradient>
+                  </Defs>
                   <Ellipse
                     cx={svgSize}
                     cy={svgSize / 2}
@@ -194,7 +397,6 @@ export default function Index() {
                     fill="none"
                     onPress={handleEllipseClick}
                   />
-                  {/* Left Circle */}
                   <Circle
                     cx={svgSize / 2.66}
                     cy={svgSize / 1.99}
@@ -204,7 +406,6 @@ export default function Index() {
                     fill="none"
                     onPress={handleLeftCircleClick}
                   />
-                  {/* Right Circle */}
                   <Circle
                     cx={svgSize * 1.62}
                     cy={svgSize / 1.99}
@@ -214,55 +415,40 @@ export default function Index() {
                     fill="none"
                     onPress={handleRightCircleClick}
                   />
-                  {/* Render dots for clicks */}
-                  {showAllDots
-                    ? clicks.map((click, index) => (
-                        <Circle
-                          key={index}
-                          cx={click.position.x}
-                          cy={click.position.y}
-                          r={5}
-                          fill="red"
-                        />
-                      ))
-                    : clicks.length > 0 && (
-                        <Circle
-                          cx={clicks[clicks.length - 1].position.x}
-                          cy={clicks[clicks.length - 1].position.y}
-                          r={5}
-                          fill="red"
-                        />
-                      )}
+                  {svgCircles}
                 </Svg>
               )}
             </ImageBackground>
           </View>
-          {/* Toggle button for showing all dots */}
-          {/* <TouchableOpacity
+          <TouchableOpacity
             onPress={() => setShowAllDots(!showAllDots)}
             className="bg-[#2D8609] px-4 py-2 rounded-full absolute bottom-4"
           >
             <Text className="text-white font-semibold">
               {showAllDots ? "Show Last Dot" : "Show All Dots"}
             </Text>
-          </TouchableOpacity> */}
+          </TouchableOpacity>
           <View className="absolute top-[100px] left-0">
             <CustomDropdown
               items={QuaterData}
-              title={"Script HQ"}
-              onClickItem={handleItemClick}
-              isOpen={isOpen}
-              onToggle={handleToggle}
+              title={team[0]}
+              onClickItem={(item) => handleItemClick(item, team[0])}
+              isOpen={isLeftDropdownOpen}
+              onToggle={() => {
+                // do nothing
+              }}
               alignment="left"
             />
           </View>
           <View className="absolute top-[100px] right-0">
             <CustomDropdown
               items={QuaterData}
-              title={"Script RH"}
-              onClickItem={handleItemClick}
-              isOpen={isOpen}
-              onToggle={handleToggle}
+              title={team[1]}
+              onClickItem={(item) => handleItemClick(item, team[1])}
+              isOpen={isLeftDropdownOpen}
+              onToggle={() => {
+                // do nothing
+              }}
               alignment="right"
             />
           </View>
@@ -281,26 +467,19 @@ export default function Index() {
         />
       </LinearGradient>
       <StatusBar style="light" />
-
-      {/* Start game Modal */}
       <AppModal onClose={() => setWornNextQ(false)} visible={wornNextQ}>
         <View className="flex flex-col items-center justify-center">
-          {/* Title */}
           <Text className="text-2xl font-bold mb-3 text-center">
             Start the Game
           </Text>
-
-          {/* Description */}
           <Text className="text-base text-gray-600 mb-6 text-center px-4">
             This AFL tool helps coaches track, monitor, and analyze the game in
             real time.
           </Text>
-
-          {/* Buttons */}
           <View className="flex-row gap-3">
             <TouchableOpacity
               className="px-6 py-3 rounded-lg border border-[#2D8609]"
-              onPress={() => console.log("Close")}
+              onPress={() => setWornNextQ(false)}
             >
               <Text className="text-[#2D8609] font-semibold text-lg">
                 Close
@@ -309,7 +488,11 @@ export default function Index() {
             <TouchableOpacity
               className="px-6 py-3 rounded-lg"
               style={{ backgroundColor: "#2D8609" }}
-              onPress={() => console.log("Game Started!")}
+              onPress={() => {
+                setWornNextQ(false);
+                setIsRunning(true);
+                console.log("Game Started!");
+              }}
             >
               <Text className="text-white font-semibold text-lg">Start</Text>
             </TouchableOpacity>
@@ -319,16 +502,3 @@ export default function Index() {
     </View>
   );
 }
-
-// const style = StyleSheet.create({
-//   shadow: {
-//     shadowColor: "#000",
-//     shadowOffset: {
-//       width: 0,
-//       height: 4,
-//     },
-//     shadowOpacity: 0.2,
-//     shadowRadius: 4,
-//     elevation: 5,
-//   },
-// });
