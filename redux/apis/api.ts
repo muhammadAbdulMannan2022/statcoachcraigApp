@@ -30,9 +30,14 @@ export const api = createApi({
     getGameData: builder.query({
       query: (id) => `api/get_game_data/${id}/`,
     }),
-    getQuaterData: builder.query({
-      query: (data) =>
-        `api/get_game_data_by_quarter/${data.game_id}/${data.quater_id}/`,
+    getQuaterData: builder.query<
+      any, // response type
+      { game_id: string; quater_id: string } // argument type
+    >({
+      query: ({ game_id, quater_id }) => {
+        console.log(game_id, quater_id, "rtk query params");
+        return `api/get_game_data_by_quarter/${game_id}/${quater_id}/`;
+      },
     }),
   }),
 });

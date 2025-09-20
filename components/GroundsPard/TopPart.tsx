@@ -1,11 +1,18 @@
+import {
+  useGetQuaterDataQuery,
+  useSendQuaterDataMutation,
+} from "@/redux/apis/api";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Octicons from "@expo/vector-icons/Octicons";
+import { skipToken } from "@reduxjs/toolkit/query";
+import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import AppModal from "../ui/Modals/ModalScaliton";
+import StrategyModal from "../ui/Modals/ReportModal";
 
 interface PropIntrface {
   isRunning: boolean;
@@ -16,6 +23,11 @@ interface PropIntrface {
   setTime: React.Dispatch<React.SetStateAction<number>>;
   undo: () => void;
   redo: () => void;
+  wayOfKick: string;
+  setWayOfKick: (data: "" | "left" | "right") => void;
+  clicks: any;
+  clearHistory: () => void;
+  setWornNextQ: (data: boolean) => void;
 }
 
 export default function TopPart({
@@ -27,6 +39,11 @@ export default function TopPart({
   setTime,
   undo,
   redo,
+  wayOfKick,
+  setWayOfKick,
+  clicks,
+  clearHistory,
+  setWornNextQ,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
@@ -40,22 +57,168 @@ export default function TopPart({
   >(null);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [gameFinished, setGameFinished] = useState(false);
-  const [skipWarningVisible, setSkipWarningVisible] = useState(false); // New state for skip warning modal
+  const [skipWarningVisible, setSkipWarningVisible] = useState(false);
+  const [quarterReportVisible, setQuarterReportVisible] = useState(false);
+  const [submitConfirmVisible, setSubmitConfirmVisible] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isReportVisible, setReportVisible] = useState(false);
+  const [game_id, setGameId] = useState<string | null>(null);
+  const [reportQuarter, setReportQuarter] = useState<
+    "1" | "2" | "3" | "4" | null | string
+  >(null);
+  const [submitQuaterData, { isLoading: issubmitQuaterLoading }] =
+    useSendQuaterDataMutation();
+  const {
+    data: quaterData,
+    isLoading: isQuaterDataLoading,
+    error: quaterDataError,
+    refetch,
+  } = useGetQuaterDataQuery(
+    game_id && reportQuarter ? { game_id, quater_id: reportQuarter } : skipToken
+  );
+
+  // Log query state for debugging
+  useEffect(() => {
+    console.log(
+      "quaterData:",
+      quaterData,
+      "isLoading:",
+      isQuaterDataLoading,
+      "error:",
+      quaterDataError
+    );
+  }, [quaterData, isQuaterDataLoading, quaterDataError]);
+
+  // Fetch game report for the specified quarter
+  const handleGetGameReport = async (quarter: "1" | "2" | "3" | "4") => {
+    try {
+      const id = await SecureStore.getItemAsync("game_id");
+      if (id) {
+        setGameId(id);
+        let quater_id: "a" | "b" | "c" | "d";
+        switch (quarter) {
+          case "1":
+            quater_id = "a";
+            break;
+          case "2":
+            quater_id = "b";
+            break;
+          case "3":
+            quater_id = "c";
+            break;
+          case "4":
+            quater_id = "d";
+            break;
+          default:
+            quater_id = "a"; // Fallback
+        }
+        setReportQuarter(quater_id);
+        // Wait for query to complete before opening modal
+        if (!isQuaterDataLoading && quaterData && !quaterDataError) {
+          setReportVisible(true);
+        }
+      } else {
+        setSubmitError("No game ID found");
+        setSkipWarningVisible(true);
+      }
+    } catch (error) {
+      console.log(error, "line 117 top part.tsx");
+      setSubmitError("Failed to fetch report data");
+      setSkipWarningVisible(true);
+    }
+  };
+
+  // Trigger refetch when game_id or reportQuarter changes
+  useEffect(() => {
+    if (game_id && reportQuarter) {
+      refetch();
+    }
+  }, [game_id, reportQuarter, refetch]);
+
+  // Open StrategyModal when quaterData is ready
+  useEffect(() => {
+    if (
+      game_id &&
+      reportQuarter &&
+      !isQuaterDataLoading &&
+      quaterData &&
+      !quaterDataError
+    ) {
+      setReportVisible(true);
+    } else if (quaterDataError) {
+      setSubmitError("Failed to load quarter data");
+      setSkipWarningVisible(true);
+    }
+  }, [
+    quaterData,
+    isQuaterDataLoading,
+    quaterDataError,
+    game_id,
+    reportQuarter,
+  ]);
+
+  // Submit quarter data
+  const handleSubmitQuarterData = async () => {
+    if (time === 0) {
+      setSubmitError("Cannot submit quarter with time 00:00:00");
+      setSkipWarningVisible(true);
+      return false;
+    }
+    try {
+      const game_id = await SecureStore.getItemAsync("game_id");
+      let quater_name;
+      switch (value) {
+        case "1":
+          quater_name = "a";
+          break;
+        case "2":
+          quater_name = "b";
+          break;
+        case "3":
+          quater_name = "c";
+          break;
+        case "4":
+          quater_name = "d";
+          break;
+      }
+      const res = await submitQuaterData({
+        game_id,
+        quarter_name: quater_name,
+        quarter_data: clicks,
+      }).unwrap();
+      console.log(res, "line 152 top part");
+      return true;
+    } catch (err) {
+      console.log(err, "line 154 top part.tsx");
+      setSubmitError("Failed to submit quarter data");
+      setSkipWarningVisible(true);
+      return false;
+    }
+  };
+
+  // Confirm submission and proceed
+  const confirmSubmitQuarter = async () => {
+    const success = await handleSubmitQuarterData();
+    if (success) {
+      setQuarterReportVisible(true);
+    }
+    setSubmitConfirmVisible(false);
+  };
 
   // Toggle play/pause
-  const toggleTimer = () => {
+  const toggleTimer = async () => {
+    if (wayOfKick === "") return;
     if (isRunning) {
       setIsRunning(false);
-
+      setSubmitConfirmVisible(true);
       const current = Number(value);
       if (current < 4) {
         setPendingQuarter(String(current + 1) as "1" | "2" | "3" | "4");
-        setConfirmVisible(true);
       } else {
         setGameFinished(true);
       }
     } else {
-      setIsRunning(true); // resume
+      setIsRunning(true);
     }
   };
 
@@ -76,13 +239,20 @@ export default function TopPart({
     const current = Number(value);
     const next = Number(item.value);
 
+    if (time === 0) {
+      setSubmitError("Cannot change quarter with time 00:00:00");
+      setSkipWarningVisible(true);
+      return;
+    }
     if (next > current + 1) {
       console.log("❌ Can't skip quarters");
-      setSkipWarningVisible(true); // Show warning modal for skipping quarters
+      setSubmitError("Cannot skip quarters");
+      setSkipWarningVisible(true);
       return;
     }
     if (next < current) {
       console.log("❌ Can't go back to previous quarter");
+      setSubmitError("Cannot go back to previous quarter");
       return;
     }
     if (current === 4) {
@@ -91,19 +261,19 @@ export default function TopPart({
     }
 
     setPendingQuarter(item.value);
-    setConfirmVisible(true);
-
-    // Reset dropdown to current value to prevent skipping
-    setValue(value);
+    setSubmitConfirmVisible(true);
   };
 
   // Confirm quarter change
   const confirmChangeQuarter = () => {
     if (pendingQuarter) {
-      setTime(0); // reset timer only after confirmation
       setValue(pendingQuarter);
+      setWayOfKick("");
+      setTime(0);
+      clearHistory();
       console.log("✅ Moved to quarter:", pendingQuarter);
     }
+    setQuarterReportVisible(false);
     setConfirmVisible(false);
     setPendingQuarter(null);
   };
@@ -179,7 +349,10 @@ export default function TopPart({
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity className="bg-[#2D8609] px-4 py-2 rounded-full">
+          <TouchableOpacity
+            className="bg-[#2D8609] px-4 py-2 rounded-full"
+            onPress={() => handleGetGameReport(value)}
+          >
             <Text className="text-white text-base font-semibold">
               Generate Report
             </Text>
@@ -204,7 +377,41 @@ export default function TopPart({
         </View>
       </View>
 
-      {/* Confirm Modal */}
+      {/* Submit Confirmation Modal */}
+      <AppModal
+        visible={submitConfirmVisible}
+        onClose={() => setSubmitConfirmVisible(false)}
+      >
+        <View className="items-center">
+          <Text className="text-lg font-bold mb-4">
+            Submit Quarter {value}?
+          </Text>
+          <Text className="text-gray-600 mb-6 text-center">
+            Once submitted, you cannot edit this quarter's data. Are you sure
+            you want to submit?
+          </Text>
+          <View className="flex-row gap-4">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg border border-gray-400"
+              onPress={() => {
+                setSubmitConfirmVisible(false);
+                if (gameFinished) setGameFinished(true);
+              }}
+            >
+              <Text className="text-gray-600">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg"
+              style={{ backgroundColor: "#2D8609" }}
+              onPress={confirmSubmitQuarter}
+            >
+              <Text className="text-white">Yes, Submit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AppModal>
+
+      {/* Confirm Quarter Change Modal */}
       <AppModal
         visible={confirmVisible}
         onClose={() => setConfirmVisible(false)}
@@ -214,7 +421,7 @@ export default function TopPart({
             Move to Quarter {pendingQuarter}?
           </Text>
           <Text className="text-gray-600 mb-6 text-center">
-            The current quarter will end and the timer will reset.
+            The timer will reset for the new quarter.
           </Text>
           <View className="flex-row gap-4">
             <TouchableOpacity
@@ -234,23 +441,70 @@ export default function TopPart({
         </View>
       </AppModal>
 
-      {/* Skip Quarter Warning Modal */}
+      {/* Quarter Report Modal */}
       <AppModal
-        visible={skipWarningVisible}
-        onClose={() => setSkipWarningVisible(false)}
+        visible={quarterReportVisible}
+        onClose={() => setQuarterReportVisible(false)}
       >
         <View className="items-center">
-          <Text className="text-lg font-bold mb-4 text-red-600">
-            Cannot Skip Quarters
+          <Text className="text-lg font-bold mb-4">
+            Quarter {value} Submitted
           </Text>
           <Text className="text-gray-600 mb-6 text-center">
-            You cannot skip quarters. Please select the next quarter (Quarter{" "}
-            {Number(value) + 1}).
+            Quarter data has been submitted. Would you like to see the quarter
+            reports?
           </Text>
           <View className="flex-row gap-4">
             <TouchableOpacity
               className="px-4 py-2 rounded-lg border border-gray-400"
-              onPress={() => setSkipWarningVisible(false)}
+              onPress={() => {
+                setQuarterReportVisible(false);
+                if (pendingQuarter && !gameFinished) setConfirmVisible(true);
+              }}
+            >
+              <Text className="text-gray-600">Continue</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg"
+              style={{ backgroundColor: "#2D8609" }}
+              onPress={() => {
+                setQuarterReportVisible(false);
+                handleGetGameReport(value);
+                if (pendingQuarter && !gameFinished) setConfirmVisible(true);
+              }}
+            >
+              <Text className="text-white">See Quarter Reports</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AppModal>
+
+      {/* Skip Quarter Warning Modal */}
+      <AppModal
+        visible={skipWarningVisible}
+        onClose={() => {
+          setSkipWarningVisible(false);
+          setSubmitError(null);
+        }}
+      >
+        <View className="items-center">
+          <Text className="text-lg font-bold mb-4 text-red-600">
+            {submitError ? submitError : "Cannot Skip Quarters"}
+          </Text>
+          <Text className="text-gray-600 mb-6 text-center">
+            {submitError
+              ? "Please ensure valid data before proceeding."
+              : "You cannot skip quarters. Please select the next quarter and ensure time is not 00:00:00 (Quarter " +
+                (Number(value) + 1) +
+                ")."}
+          </Text>
+          <View className="flex-row gap-4">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-lg border border-gray-400"
+              onPress={() => {
+                setSkipWarningVisible(false);
+                setSubmitError(null);
+              }}
             >
               <Text className="text-gray-600">Close</Text>
             </TouchableOpacity>
@@ -263,8 +517,8 @@ export default function TopPart({
         <View className="items-center">
           <Text className="text-lg font-bold mb-4">Game Finished</Text>
           <Text className="text-gray-600 mb-6 text-center">
-            All four quarters are complete. You can reset the game or generate
-            the full report.
+            All four quarters are complete. You can reset the game or view the
+            final report.
           </Text>
           <View className="flex-row gap-4">
             <TouchableOpacity
@@ -274,6 +528,9 @@ export default function TopPart({
                 setValue("1");
                 setTime(0);
                 setIsRunning(false);
+                setWayOfKick("");
+                clearHistory();
+                setWornNextQ(true);
               }}
             >
               <Text className="text-gray-600">Reset Game</Text>
@@ -281,13 +538,29 @@ export default function TopPart({
             <TouchableOpacity
               className="px-4 py-2 rounded-lg"
               style={{ backgroundColor: "#2D8609" }}
-              onPress={() => console.log("Generate Report")}
+              onPress={() => {
+                setGameFinished(false);
+                handleGetGameReport("4");
+              }}
             >
-              <Text className="text-white">Generate Report</Text>
+              <Text className="text-white">View Final Report</Text>
             </TouchableOpacity>
           </View>
         </View>
       </AppModal>
+
+      {/* Report Modal */}
+      {isReportVisible && (
+        <StrategyModal
+          isLoading={isQuaterDataLoading}
+          data={quaterData || []} // Fallback to empty array
+          visible={isReportVisible}
+          onClose={() => {
+            setReportVisible(false);
+            setReportQuarter(null);
+          }}
+        />
+      )}
     </View>
   );
 }

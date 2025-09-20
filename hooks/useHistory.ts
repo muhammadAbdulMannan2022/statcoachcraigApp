@@ -58,6 +58,17 @@ export const useHistory = (
     [historyIndex]
   );
 
+  const clearHistory = useCallback(() => {
+    console.log("Clearing all history");
+    const emptyClicks: ClickEvent[] = [];
+    setClicks(emptyClicks);
+    setCurrentLine(null);
+    setPendingLineClick(null);
+    setClickHistory([emptyClicks]);
+    setHistoryIndex(0);
+    console.log("History cleared");
+  }, [setClicks, setCurrentLine, setPendingLineClick]);
+
   const undo = useCallback(() => {
     if (historyIndex <= 0) {
       console.log("Cannot undo: at the beginning of history");
@@ -162,5 +173,5 @@ export const useHistory = (
     setPendingLineClick,
   ]);
 
-  return { updateHistory, undo, redo };
+  return { updateHistory, undo, redo, clearHistory };
 };

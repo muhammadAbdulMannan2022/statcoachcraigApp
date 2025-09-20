@@ -4,8 +4,10 @@ import RightSidebar from "@/components/TeamActions/RightSidebar";
 import CustomDropdown from "@/components/teamStratagy/TeamStratagy";
 import AppModal from "@/components/ui/Modals/ModalScaliton";
 import { useHistory } from "@/hooks/useHistory";
+import { useCreateGameMutation } from "@/redux/apis/api";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LinearGradient } from "expo-linear-gradient";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageBackground, Text, TouchableOpacity, View } from "react-native";
@@ -63,12 +65,33 @@ export default function Index() {
   const [currentLine, setCurrentLine] = useState<CurrentLine | null>(null);
   const [showAllDots, setShowAllDots] = useState(false);
   const [wornNextQ, setWornNextQ] = useState(true);
-  const [team] = useState(["Script HQ", "Script RH"]);
+  const [team] = useState(["MY TEAM", "OTHER TEAM"]);
   const pairIdCounter = useRef(0);
   const renderCount = useRef(0);
+  // all rtk and its functions
+  const [createGame, { isLoading: isCreateGameLoading }] =
+    useCreateGameMutation();
+
+  // rtks functions
+  const handleCreateGame = async () => {
+    try {
+      const res = await createGame({}).unwrap();
+      if (res.game_id) {
+        setWornNextQ(false);
+        // setIsRunning(true);
+        await SecureStore.setItemAsync("game_id", res.game_id.toString());
+        console.log(res.game_id);
+        console.log("Game Started!");
+      } else {
+        throw new Error("No game_id returned");
+      }
+    } catch (error) {
+      console.log(error, "line 82 index.tsx");
+    }
+  };
 
   // Initialize useHistory hook
-  const { updateHistory, undo, redo } = useHistory(
+  const { updateHistory, undo, redo, clearHistory } = useHistory(
     clicks,
     setClicks,
     setCurrentLine,
@@ -158,6 +181,7 @@ export default function Index() {
 
   const handleEllipseClick = useCallback(
     (e: any) => {
+      if (!isRunning) return;
       if (pendingClickIndex !== null) {
         console.log(
           "Please select an action from the dropdown before clicking again."
@@ -254,6 +278,7 @@ export default function Index() {
 
   const handleLeftCircleClick = useCallback(
     (e: any) => {
+      if (!isRunning) return;
       if (pendingClickIndex !== null) {
         console.log(
           "Please select an action from the dropdown before clicking again."
@@ -375,6 +400,7 @@ export default function Index() {
 
   const handleRightCircleClick = useCallback(
     (e: any) => {
+      if (!isRunning) return;
       if (pendingClickIndex !== null) {
         console.log(
           "Please select an action from the dropdown before clicking again."
@@ -496,6 +522,7 @@ export default function Index() {
 
   const handleItemClick = useCallback(
     (item: { label: string; value: string }, teamSelected: string) => {
+      if (!isRunning) return;
       if (pendingClickIndex === null) {
         console.log("No pending click to associate with this selection.");
         return;
@@ -578,7 +605,7 @@ export default function Index() {
         key={clicks.length - dotsToRender.length + index}
         cx={click.position.x}
         cy={click.position.y}
-        r={5}
+        r={dotsToRender.length > 1 ? 25 : 5}
         fill={
           dotsToRender.length > 1
             ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
@@ -620,11 +647,19 @@ export default function Index() {
             setTime={setTimer}
             undo={undo}
             redo={redo}
+            wayOfKick={wayOfKick}
+            setWayOfKick={setWayOfKick}
+            clicks={clicks}
+            clearHistory={clearHistory}
+            setWornNextQ={setWornNextQ}
           />
-          {wayOfKick === "" && (
+          {wayOfKick == "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">
               <TouchableOpacity
-                onPress={() => setWayOfKick("left")}
+                onPress={async () => {
+                  setWayOfKick("left");
+                  setIsRunning(true);
+                }}
                 className="bg-[#2D8609] w-12 h-12 rounded-full items-center justify-center"
               >
                 <FontAwesome5 name="angle-left" size={24} color="#fff" />
@@ -635,7 +670,10 @@ export default function Index() {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => setWayOfKick("right")}
+                onPress={async () => {
+                  setWayOfKick("right");
+                  setIsRunning(true);
+                }}
                 className="bg-[#2D8609] w-12 h-12 rounded-full items-center justify-center"
               >
                 <FontAwesome5 name="angle-right" size={24} color="#fff" />
@@ -703,7 +741,7 @@ export default function Index() {
             </ImageBackground>
           </View>
           <View className="flex-row gap-4 absolute bottom-4">
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={undo}
               className="bg-[#2D8609] px-4 py-2 rounded-full"
             >
@@ -714,7 +752,7 @@ export default function Index() {
               className="bg-[#2D8609] px-4 py-2 rounded-full"
             >
               <Text className="text-white font-semibold">Redo</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               onPress={() => setShowAllDots(!showAllDots)}
               className="bg-[#2D8609] px-4 py-2 rounded-full"
@@ -727,8 +765,10 @@ export default function Index() {
           <View className="absolute top-[100px] left-0">
             <CustomDropdown
               items={QuaterData}
-              title={team[0]}
-              onClickItem={(item) => handleItemClick(item, team[0])}
+              title={team[wayOfKick === "left" ? 1 : 0]}
+              onClickItem={(item) =>
+                handleItemClick(item, team[wayOfKick === "left" ? 1 : 0])
+              }
               isOpen={isLeftDropdownOpen}
               onToggle={() => {
                 // do nothing
@@ -739,8 +779,10 @@ export default function Index() {
           <View className="absolute top-[100px] right-0">
             <CustomDropdown
               items={QuaterData}
-              title={team[1]}
-              onClickItem={(item) => handleItemClick(item, team[1])}
+              title={team[wayOfKick === "left" ? 0 : 1]}
+              onClickItem={(item) =>
+                handleItemClick(item, team[wayOfKick === "left" ? 0 : 1])
+              }
               isOpen={isLeftDropdownOpen}
               onToggle={() => {
                 // do nothing
@@ -765,7 +807,7 @@ export default function Index() {
         />
       </LinearGradient>
       <StatusBar style="light" />
-      <AppModal onClose={() => setWornNextQ(false)} visible={wornNextQ}>
+      <AppModal onClose={() => {}} visible={wornNextQ}>
         <View className="flex flex-col items-center justify-center">
           <Text className="text-2xl font-bold mb-3 text-center">
             Start the Game
@@ -776,20 +818,11 @@ export default function Index() {
           </Text>
           <View className="flex-row gap-3">
             <TouchableOpacity
-              className="px-6 py-3 rounded-lg border border-[#2D8609]"
-              onPress={() => setWornNextQ(false)}
-            >
-              <Text className="text-[#2D8609] font-semibold text-lg">
-                Close
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               className="px-6 py-3 rounded-lg"
               style={{ backgroundColor: "#2D8609" }}
+              disabled={isCreateGameLoading}
               onPress={() => {
-                setWornNextQ(false);
-                setIsRunning(true);
-                console.log("Game Started!");
+                handleCreateGame();
               }}
             >
               <Text className="text-white font-semibold text-lg">Start</Text>
