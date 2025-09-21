@@ -23,6 +23,7 @@ import Svg, {
 
 interface ClickEvent {
   position: { x: number; y: number };
+  position2?: { x: number; y: number };
   type: "ellipse" | "ellipse left" | "ellipse right";
   team: string;
   item: string;
@@ -62,10 +63,14 @@ export default function Index() {
   const [pendingClickIndex, setPendingClickIndex] = useState<number | null>(
     null
   );
+  const [pendingInside50Index, setPendingInside50Index] = useState<
+    number | null
+  >(null);
   const [pendingLineClick, setPendingLineClick] = useState<LineClick | null>(
     null
   );
   const [currentLine, setCurrentLine] = useState<CurrentLine | null>(null);
+  const [completedLines, setCompletedLines] = useState<CurrentLine[]>([]);
   const [showAllDots, setShowAllDots] = useState(false);
   const [wornNextQ, setWornNextQ] = useState(true);
   const [team] = useState(["MY TEAM", "OTHER TEAM"]);
@@ -181,31 +186,9 @@ export default function Index() {
     []
   );
 
-  const assignTeamToPendingPairs = useCallback(
-    (teamSelected: string, newClicks: ClickEvent[]) => {
-      return newClicks.map((click) => {
-        if (
-          click.item === "inside_50" &&
-          !click.isComplete &&
-          click.team === ""
-        ) {
-          return { ...click, team: teamSelected, isComplete: true };
-        }
-        return click;
-      });
-    },
-    []
-  );
-
   const handleEllipseClick = useCallback(
     (e: any) => {
       if (!isRunning) return;
-      if (pendingClickIndex !== null) {
-        console.log(
-          "Please select an action from the dropdown before clicking again."
-        );
-        return;
-      }
       console.time("DotPlacement");
       const { locationX, locationY } = e.nativeEvent;
       const currentTime = formatTime(timer);
@@ -227,88 +210,37 @@ export default function Index() {
       }
 
       setCurrentLine(null); // Clear previous line
-      if (pendingLineClick !== null) {
-        // Second click for Inside 50
+      setCompletedLines([]); // Clear completed lines on new action
+      setClicks((prev) => {
         const newClick: ClickEvent = {
           position: { x: locationX, y: locationY },
           type: "ellipse",
           team: "",
-          item: "inside_50",
+          item: "",
           time: currentTime,
           isComplete: false,
-          pairId: pendingLineClick.pairId,
         };
-        setClicks((prev) => {
-          const updatedClicks = [
-            ...prev,
-            {
-              position: pendingLineClick.position,
-              type: pendingLineClick.type,
-              team: "",
-              item: "inside_50",
-              time: pendingLineClick.time,
-              isComplete: false,
-              pairId: pendingLineClick.pairId,
-            },
-            newClick,
-          ];
-          setPendingClickIndex(updatedClicks.length - 2); // Point to first click
-          setCurrentLine({
-            position: pendingLineClick.position,
-            to: { x: locationX, y: locationY },
-            isComplete: false,
-            pairId: pendingLineClick.pairId,
-          });
-          // Defer updateHistory until team selection
-          console.log("Second click for Inside 50:", {
-            x: locationX,
-            y: locationY,
-          });
-          return updatedClicks;
-        });
-        setPendingLineClick(null);
-        setIsLeftDropdownOpen(true);
-        setIsRightDropdownOpen(true);
-      } else {
-        // Normal ellipse click
-        setClicks((prev) => {
-          const newClick: ClickEvent = {
-            position: { x: locationX, y: locationY },
-            type: "ellipse",
-            team: "",
-            item: "",
-            time: currentTime,
-            isComplete: false,
-          };
-          console.log("Adding ellipse click:", newClick);
-          const updatedClicks = [...prev, newClick];
-          setPendingClickIndex(updatedClicks.length - 1);
-          // Defer updateHistory until team selection
-          return updatedClicks;
-        });
-        setIsLeftDropdownOpen(true);
-        setIsRightDropdownOpen(true);
-      }
+        console.log("Adding ellipse click:", newClick);
+        const updatedClicks = [...prev, newClick];
+        setPendingClickIndex(updatedClicks.length - 1);
+        // Defer updateHistory until team selection
+        return updatedClicks;
+      });
+      setIsLeftDropdownOpen(true);
+      setIsRightDropdownOpen(true);
       console.timeEnd("DotPlacement");
     },
-    [pendingClickIndex, pendingLineClick, timer, formatTime, clicks, isRunning]
+    [timer, formatTime, clicks, isRunning]
   );
 
   const handleLeftCircleClick = useCallback(
     (e: any) => {
       if (!isRunning) return;
-      if (pendingClickIndex !== null) {
-        console.log(
-          "Please select an action from the dropdown before clicking again."
-        );
-        return;
-      }
       const { locationX, locationY } = e.nativeEvent;
       const ellipseCx = svgSize;
       const ellipseCy = svgSize / 2;
       const adjustedRx = ellipseRx * 1.6;
       const adjustedRy = ellipseRy * 1.7;
-      const currentTime = formatTime(timer);
 
       if (
         isPointInEllipse(
@@ -320,83 +252,43 @@ export default function Index() {
           adjustedRy
         )
       ) {
-        // Check for duplicate click
-        const isDuplicate = clicks.some(
-          (click) =>
-            click.position.x === locationX &&
-            click.position.y === locationY &&
-            click.time === currentTime
-        );
-        if (isDuplicate) {
-          console.log("Duplicate click detected, ignoring:", {
-            x: locationX,
-            y: locationY,
-            time: currentTime,
+        if (pendingInside50Index !== null) {
+          // Second click for inside_50
+          setClicks((prev) => {
+            const updatedClicks = prev.map((click, index) => {
+              if (index === pendingInside50Index) {
+                return {
+                  ...click,
+                  position2: { x: locationX, y: locationY },
+                  isComplete: true,
+                };
+              }
+              return click;
+            });
+            console.log("Second position for inside_50:", {
+              position2: { x: locationX, y: locationY },
+            });
+            updateHistory(updatedClicks, true);
+            return updatedClicks;
           });
+          setCompletedLines((prev) => [
+            ...prev,
+            {
+              position: clicks[pendingInside50Index!].position,
+              to: { x: locationX, y: locationY },
+              isComplete: true,
+              pairId: 0,
+            },
+          ]);
+          setPendingInside50Index(null);
+          setIsLeftDropdownOpen(false);
+          setIsRightDropdownOpen(false);
+          setPendingClickIndex(null);
           return;
         }
 
-        console.time("DotPlacement");
-        setCurrentLine(null); // Clear previous line
-        if (pendingLineClick === null) {
-          // First click: Store pending line click and add point
-          const newPairId = pairIdCounter.current++;
-          setPendingLineClick({
-            position: { x: locationX, y: locationY },
-            type: "ellipse left",
-            time: currentTime,
-            pairId: newPairId,
-          });
-          setClicks((prev) => {
-            const newClick: ClickEvent = {
-              position: { x: locationX, y: locationY },
-              type: "ellipse left",
-              team: "",
-              item: "inside_50",
-              time: currentTime,
-              isComplete: false,
-              pairId: newPairId,
-            };
-            console.log("First left circle click stored:", {
-              x: locationX,
-              y: locationY,
-            });
-            const updatedClicks = [...prev, newClick];
-            // Defer updateHistory until team selection
-            return updatedClicks;
-          });
-        } else {
-          // Second click for Inside 50
-          setClicks((prev) => {
-            const newClick: ClickEvent = {
-              position: { x: locationX, y: locationY },
-              type: "ellipse left",
-              team: "",
-              item: "inside_50",
-              time: currentTime,
-              isComplete: false,
-              pairId: pendingLineClick.pairId,
-            };
-            const updatedClicks = [...prev, newClick];
-            setPendingClickIndex(updatedClicks.length - 2); // Point to first click
-            setCurrentLine({
-              position: pendingLineClick.position,
-              to: { x: locationX, y: locationY },
-              isComplete: false,
-              pairId: pendingLineClick.pairId,
-            });
-            // Defer updateHistory until team selection
-            console.log("Second click for Inside 50:", {
-              x: locationX,
-              y: locationY,
-            });
-            return updatedClicks;
-          });
-          setPendingLineClick(null);
-          setIsLeftDropdownOpen(true);
-          setIsRightDropdownOpen(true);
-        }
-        console.timeEnd("DotPlacement");
+        // For other actions, do nothing on circle clicks
+        console.log("Circle click ignored, not in inside_50 mode.");
       } else {
         console.log(
           "Left circle clicked outside ellipse overlap. Not counted."
@@ -404,15 +296,13 @@ export default function Index() {
       }
     },
     [
-      pendingClickIndex,
-      pendingLineClick,
-      timer,
-      formatTime,
+      pendingInside50Index,
+      updateHistory,
+      setPendingClickIndex,
       svgSize,
       ellipseRx,
       ellipseRy,
       isPointInEllipse,
-      clicks,
       isRunning,
     ]
   );
@@ -420,18 +310,11 @@ export default function Index() {
   const handleRightCircleClick = useCallback(
     (e: any) => {
       if (!isRunning) return;
-      if (pendingClickIndex !== null) {
-        console.log(
-          "Please select an action from the dropdown before clicking again."
-        );
-        return;
-      }
       const { locationX, locationY } = e.nativeEvent;
       const ellipseCx = svgSize;
       const ellipseCy = svgSize / 2;
       const adjustedRx = ellipseRx * 1.6;
       const adjustedRy = ellipseRy * 1.7;
-      const currentTime = formatTime(timer);
 
       if (
         isPointInEllipse(
@@ -443,83 +326,43 @@ export default function Index() {
           adjustedRy
         )
       ) {
-        // Check for duplicate click
-        const isDuplicate = clicks.some(
-          (click) =>
-            click.position.x === locationX &&
-            click.position.y === locationY &&
-            click.time === currentTime
-        );
-        if (isDuplicate) {
-          console.log("Duplicate click detected, ignoring:", {
-            x: locationX,
-            y: locationY,
-            time: currentTime,
+        if (pendingInside50Index !== null) {
+          // Second click for inside_50
+          setClicks((prev) => {
+            const updatedClicks = prev.map((click, index) => {
+              if (index === pendingInside50Index) {
+                return {
+                  ...click,
+                  position2: { x: locationX, y: locationY },
+                  isComplete: true,
+                };
+              }
+              return click;
+            });
+            console.log("Second position for inside_50:", {
+              position2: { x: locationX, y: locationY },
+            });
+            updateHistory(updatedClicks, true);
+            return updatedClicks;
           });
+          setCompletedLines((prev) => [
+            ...prev,
+            {
+              position: clicks[pendingInside50Index!].position,
+              to: { x: locationX, y: locationY },
+              isComplete: true,
+              pairId: 0,
+            },
+          ]);
+          setPendingInside50Index(null);
+          setIsLeftDropdownOpen(false);
+          setIsRightDropdownOpen(false);
+          setPendingClickIndex(null);
           return;
         }
 
-        console.time("DotPlacement");
-        setCurrentLine(null); // Clear previous line
-        if (pendingLineClick === null) {
-          // First click: Store pending line click and add point
-          const newPairId = pairIdCounter.current++;
-          setPendingLineClick({
-            position: { x: locationX, y: locationY },
-            type: "ellipse right",
-            time: currentTime,
-            pairId: newPairId,
-          });
-          setClicks((prev) => {
-            const newClick: ClickEvent = {
-              position: { x: locationX, y: locationY },
-              type: "ellipse right",
-              team: "",
-              item: "inside_50",
-              time: currentTime,
-              isComplete: false,
-              pairId: newPairId,
-            };
-            console.log("First right circle click stored:", {
-              x: locationX,
-              y: locationY,
-            });
-            const updatedClicks = [...prev, newClick];
-            // Defer updateHistory until team selection
-            return updatedClicks;
-          });
-        } else {
-          // Second click for Inside 50
-          setClicks((prev) => {
-            const newClick: ClickEvent = {
-              position: { x: locationX, y: locationY },
-              type: "ellipse right",
-              team: "",
-              item: "inside_50",
-              time: currentTime,
-              isComplete: false,
-              pairId: pendingLineClick.pairId,
-            };
-            const updatedClicks = [...prev, newClick];
-            setPendingClickIndex(updatedClicks.length - 2); // Point to first click
-            setCurrentLine({
-              position: pendingLineClick.position,
-              to: { x: locationX, y: locationY },
-              isComplete: false,
-              pairId: pendingLineClick.pairId,
-            });
-            // Defer updateHistory until team selection
-            console.log("Second click for Inside 50:", {
-              x: locationX,
-              y: locationY,
-            });
-            return updatedClicks;
-          });
-          setPendingLineClick(null);
-          setIsLeftDropdownOpen(true);
-          setIsRightDropdownOpen(true);
-        }
-        console.timeEnd("DotPlacement");
+        // For other actions, do nothing on circle clicks
+        console.log("Circle click ignored, not in inside_50 mode.");
       } else {
         console.log(
           "Right circle clicked outside ellipse overlap. Not counted."
@@ -527,15 +370,13 @@ export default function Index() {
       }
     },
     [
-      pendingClickIndex,
-      pendingLineClick,
-      timer,
-      formatTime,
+      pendingInside50Index,
+      updateHistory,
+      setPendingClickIndex,
       svgSize,
       ellipseRx,
       ellipseRy,
       isPointInEllipse,
-      clicks,
       isRunning,
     ]
   );
@@ -551,43 +392,50 @@ export default function Index() {
       console.time("ItemSelection");
       setClicks((prevClicks) => {
         let updatedClicks = prevClicks.map((click, index) => {
-          if (
-            index === pendingClickIndex ||
-            (item.value === "inside_50" &&
-              index === pendingClickIndex + 1 &&
-              click.pairId === prevClicks[pendingClickIndex]?.pairId)
-          ) {
-            return {
-              ...click,
-              team: teamSelected,
-              item: item.value === "inside_50" ? "inside_50" : item.value,
-              isComplete: true,
-            };
+          if (index === pendingClickIndex) {
+            if (item.value === "inside_50") {
+              return {
+                ...click,
+                team: teamSelected,
+                item: item.value,
+                isComplete: false,
+              };
+            } else {
+              return {
+                ...click,
+                team: teamSelected,
+                item: item.value,
+                isComplete: true,
+              };
+            }
           }
           return click;
         });
 
-        // Assign team to any incomplete Inside 50 pairs
-        updatedClicks = assignTeamToPendingPairs(teamSelected, updatedClicks);
-
-        console.log("Click event completed:", {
+        console.log("Click event:", {
           position: updatedClicks[pendingClickIndex]?.position,
           type: updatedClicks[pendingClickIndex]?.type,
           team: teamSelected,
           item: item.value,
           time: updatedClicks[pendingClickIndex]?.time,
+          isComplete: item.value === "inside_50" ? false : true,
         });
-        // Save to history only when action is complete
-        updateHistory(updatedClicks, true);
+        if (item.value !== "inside_50") {
+          // Save to history only when action is complete
+          updateHistory(updatedClicks, true);
+        }
         return updatedClicks;
       });
-      setCurrentLine((prev) => (prev ? { ...prev, isComplete: true } : null));
-      setPendingClickIndex(null);
-      setIsLeftDropdownOpen(false);
-      setIsRightDropdownOpen(false);
+      if (item.value === "inside_50") {
+        setPendingInside50Index(pendingClickIndex);
+      } else {
+        setPendingClickIndex(null);
+        setIsLeftDropdownOpen(false);
+        setIsRightDropdownOpen(false);
+      }
       console.timeEnd("ItemSelection");
     },
-    [pendingClickIndex, updateHistory, assignTeamToPendingPairs, isRunning]
+    [pendingClickIndex, updateHistory, isRunning]
   );
 
   const leftSidebarItems = useMemo(
@@ -633,37 +481,78 @@ export default function Index() {
 
     const limited = dotsToRender.slice(-200); // cap rendering
 
-    return limited.map((click, index) => (
-      <Circle
-        key={index}
-        cx={click.position.x}
-        cy={click.position.y}
-        r={limited.length > 1 ? 25 : 5}
-        fill={
-          limited.length > 1
-            ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
-            : click.isComplete
-              ? "red"
-              : "orange"
-        }
-        opacity={0.9}
-      />
-    ));
+    const circles: any[] = [];
+    limited.forEach((click, index) => {
+      circles.push(
+        <Circle
+          key={`${index}-1`}
+          cx={click.position.x}
+          cy={click.position.y}
+          r={limited.length > 1 ? 25 : 5}
+          fill={
+            limited.length > 1
+              ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
+              : click.isComplete
+                ? "red"
+                : "orange"
+          }
+          opacity={0.9}
+        />
+      );
+      if (click.position2) {
+        circles.push(
+          <Circle
+            key={`${index}-2`}
+            cx={click.position2.x}
+            cy={click.position2.y}
+            r={limited.length > 1 ? 25 : 5}
+            fill={
+              limited.length > 1
+                ? `url(#${click.isComplete ? "redGradient" : "orangeGradient"})`
+                : click.isComplete
+                  ? "red"
+                  : "orange"
+            }
+            opacity={0.9}
+          />
+        );
+      }
+    });
+
+    return circles;
   }, [clicks, showAllDots, quarteredClicks]);
 
   const svgLine = useMemo(() => {
-    if (!currentLine) return null;
-    return (
-      <Line
-        x1={currentLine.position.x}
-        y1={currentLine.position.y}
-        x2={currentLine.to.x}
-        y2={currentLine.to.y}
-        stroke={currentLine.isComplete ? "red" : "orange"}
-        strokeWidth="2"
-      />
-    );
-  }, [currentLine]);
+    const lines: any[] = [];
+    if (currentLine) {
+      lines.push(
+        <Line
+          key="current"
+          x1={currentLine.position.x}
+          y1={currentLine.position.y}
+          x2={currentLine.to.x}
+          y2={currentLine.to.y}
+          stroke={currentLine.isComplete ? "red" : "orange"}
+          strokeWidth="2"
+        />
+      );
+    }
+    // Add completed lines
+    completedLines.forEach((line, index) => {
+      lines.push(
+        <Line
+          key={`completed-${index}`}
+          x1={line.position.x}
+          y1={line.position.y}
+          x2={line.to.x}
+          y2={line.to.y}
+          stroke="red"
+          strokeWidth="2"
+        />
+      );
+    });
+    return lines.length > 0 ? lines : null;
+  }, [currentLine, completedLines]);
 
   return (
     <View className="flex-1 w-full h-full">

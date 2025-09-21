@@ -1,22 +1,9 @@
 // SplashScreen.tsx
-import { useRouter } from "expo-router";
-import { useEffect } from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
 
 const { width, height } = Dimensions.get("window");
 
 const SplashScreen = () => {
-  const navigation = useRouter();
-
-  useEffect(() => {
-    // Simulate loading (or wait for async stuff like assets or API)
-    const timeout = setTimeout(() => {
-      navigation.replace("/"); // navigate to main screen
-    }, 2000); // 2 seconds splash
-
-    return () => clearTimeout(timeout);
-  }, [navigation]);
-
   return (
     <View style={styles.container}>
       <Image
