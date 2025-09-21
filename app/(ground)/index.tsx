@@ -99,6 +99,26 @@ export default function Index() {
     }
   };
 
+  const resetApp = useCallback(() => {
+    setIsRunning(false);
+    setTimer(0);
+    setActiveQuater("1");
+    setIsLeftDropdownOpen(false);
+    setIsRightDropdownOpen(false);
+    setIsLeftSideBarOpen(false);
+    setIsRightSideBarOpen(false);
+    setWayOfKick("");
+    setClicks([]);
+    setQuarteredClicks([]);
+    setPendingClickIndex(null);
+    setPendingInside50Index(null);
+    setPendingLineClick(null);
+    setCurrentLine(null);
+    setCompletedLines([]);
+    setShowAllDots(false);
+    setWornNextQ(true);
+  }, []);
+
   // Initialize useHistory hook
   const { updateHistory, undo, redo, clearHistory } = useHistory(
     clicks,
@@ -134,11 +154,11 @@ export default function Index() {
 
   const QuaterData = useMemo(
     () => [
-      { label: "Turn Over", value: "turn_over" },
       { label: "Inside 50", value: "inside_50" },
-      { label: "Fumble", value: "fumble" },
-      { label: "Content", value: "content" },
+      { label: "Clearance", value: "clearance" },
       { label: "Tackle", value: "tackle" },
+      { label: "Fumble", value: "fumble" },
+      { label: "Uncontested mark", value: "uncontested_mark" },
     ],
     []
   );
@@ -287,8 +307,48 @@ export default function Index() {
           return;
         }
 
-        // For other actions, do nothing on circle clicks
-        console.log("Circle click ignored, not in inside_50 mode.");
+        // Normal event on circle
+        if (pendingClickIndex !== null) {
+          console.log(
+            "Please select an action from the dropdown before clicking again."
+          );
+          return;
+        }
+        // Check for duplicate click
+        const currentTime = formatTime(timer);
+        const isDuplicate = clicks.some(
+          (click) =>
+            click.position.x === locationX &&
+            click.position.y === locationY &&
+            click.time === currentTime
+        );
+        if (isDuplicate) {
+          console.log("Duplicate click detected, ignoring:", {
+            x: locationX,
+            y: locationY,
+            time: currentTime,
+          });
+          return;
+        }
+        setCurrentLine(null); // Clear previous line
+        setCompletedLines([]); // Clear completed lines on new action
+        setClicks((prev) => {
+          const newClick: ClickEvent = {
+            position: { x: locationX, y: locationY },
+            type: "ellipse left",
+            team: "",
+            item: "",
+            time: currentTime,
+            isComplete: false,
+          };
+          console.log("Adding circle click:", newClick);
+          const updatedClicks = [...prev, newClick];
+          setPendingClickIndex(updatedClicks.length - 1);
+          // Defer updateHistory until team selection
+          return updatedClicks;
+        });
+        setIsLeftDropdownOpen(true);
+        setIsRightDropdownOpen(true);
       } else {
         console.log(
           "Left circle clicked outside ellipse overlap. Not counted."
@@ -299,6 +359,9 @@ export default function Index() {
       pendingInside50Index,
       updateHistory,
       setPendingClickIndex,
+      formatTime,
+      timer,
+      clicks,
       svgSize,
       ellipseRx,
       ellipseRy,
@@ -361,8 +424,48 @@ export default function Index() {
           return;
         }
 
-        // For other actions, do nothing on circle clicks
-        console.log("Circle click ignored, not in inside_50 mode.");
+        // Normal event on circle
+        if (pendingClickIndex !== null) {
+          console.log(
+            "Please select an action from the dropdown before clicking again."
+          );
+          return;
+        }
+        // Check for duplicate click
+        const currentTime = formatTime(timer);
+        const isDuplicate = clicks.some(
+          (click) =>
+            click.position.x === locationX &&
+            click.position.y === locationY &&
+            click.time === currentTime
+        );
+        if (isDuplicate) {
+          console.log("Duplicate click detected, ignoring:", {
+            x: locationX,
+            y: locationY,
+            time: currentTime,
+          });
+          return;
+        }
+        setCurrentLine(null); // Clear previous line
+        setCompletedLines([]); // Clear completed lines on new action
+        setClicks((prev) => {
+          const newClick: ClickEvent = {
+            position: { x: locationX, y: locationY },
+            type: "ellipse right",
+            team: "",
+            item: "",
+            time: currentTime,
+            isComplete: false,
+          };
+          console.log("Adding circle click:", newClick);
+          const updatedClicks = [...prev, newClick];
+          setPendingClickIndex(updatedClicks.length - 1);
+          // Defer updateHistory until team selection
+          return updatedClicks;
+        });
+        setIsLeftDropdownOpen(true);
+        setIsRightDropdownOpen(true);
       } else {
         console.log(
           "Right circle clicked outside ellipse overlap. Not counted."
@@ -373,6 +476,9 @@ export default function Index() {
       pendingInside50Index,
       updateHistory,
       setPendingClickIndex,
+      formatTime,
+      timer,
+      clicks,
       svgSize,
       ellipseRx,
       ellipseRy,
@@ -580,6 +686,7 @@ export default function Index() {
             showAllDots={showAllDots}
             setCompletedLines={setCompletedLines}
             setQuarteredClicks={setQuarteredClicks}
+            resetApp={resetApp}
           />
           {wayOfKick === "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">

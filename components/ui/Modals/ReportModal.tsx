@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -67,9 +67,7 @@ export default function StrategyModal({
     // First set heatmap state and notify parent of the selection
     setShowAllDots(true);
     onStrategySelect(filteredData); // Pass filtered data to parent
-    // Do not auto-open sidebars from the modal. Parent will decide whether
-    // to open a sidebar after receiving `filteredData` via `onStrategySelect`.
-    // Close modal last to avoid any race between parent state updates and modal visibility
+    // Close modal after selection
     onClose();
   };
 

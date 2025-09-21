@@ -46,6 +46,7 @@ interface PropIntrface {
   showAllDots: any;
   setCompletedLines: any;
   setQuarteredClicks: any;
+  resetApp: () => void;
 }
 
 export default function TopPart({
@@ -68,6 +69,7 @@ export default function TopPart({
   showAllDots,
   setCompletedLines,
   setQuarteredClicks,
+  resetApp,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
