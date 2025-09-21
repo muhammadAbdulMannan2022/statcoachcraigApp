@@ -15,14 +15,14 @@ const SplashScreen = () => {
     }, 2000); // 2 seconds splash
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
       <Image
         source={require("@/assets/splash-screen.png")}
         style={styles.image}
-        resizeMode="contain"
+        resizeMode="cover"
       />
     </View>
   );
@@ -38,7 +38,6 @@ const styles = StyleSheet.create({
   image: {
     width: width, // scale based on device width
     height: height, // scale based on device height
-    objectFit: "cover",
   },
 });
 

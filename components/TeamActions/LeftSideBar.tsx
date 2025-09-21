@@ -137,7 +137,7 @@ export default function LeftSidebar({
       duration: 250,
       useNativeDriver: true,
     }).start();
-  }, [isOpen]);
+  }, [isOpen, translateX]);
 
   return (
     // <View className="h-screen border-2 border-red-600">
@@ -173,7 +173,7 @@ export default function LeftSidebar({
               </Text>
             )}
 
-            {items.map((item, i) => (
+            {(data || items).map((item: any, i: number) => (
               <SideBarItem key={i} time={item.time} action={item.action} />
             ))}
           </ScrollView>

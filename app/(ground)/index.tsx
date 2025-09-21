@@ -71,6 +71,7 @@ export default function Index() {
   const [team] = useState(["MY TEAM", "OTHER TEAM"]);
   const pairIdCounter = useRef(0);
   const renderCount = useRef(0);
+  // Sidebar openers removed — parent won't auto-open sidebars from modal
   // all rtk and its functions
   const [createGame, { isLoading: isCreateGameLoading }] =
     useCreateGameMutation();
@@ -290,7 +291,7 @@ export default function Index() {
       }
       console.timeEnd("DotPlacement");
     },
-    [pendingClickIndex, pendingLineClick, timer, formatTime, clicks]
+    [pendingClickIndex, pendingLineClick, timer, formatTime, clicks, isRunning]
   );
 
   const handleLeftCircleClick = useCallback(
@@ -412,6 +413,7 @@ export default function Index() {
       ellipseRy,
       isPointInEllipse,
       clicks,
+      isRunning,
     ]
   );
 
@@ -534,6 +536,7 @@ export default function Index() {
       ellipseRy,
       isPointInEllipse,
       clicks,
+      isRunning,
     ]
   );
 
@@ -584,7 +587,7 @@ export default function Index() {
       setIsRightDropdownOpen(false);
       console.timeEnd("ItemSelection");
     },
-    [pendingClickIndex, updateHistory, assignTeamToPendingPairs]
+    [pendingClickIndex, updateHistory, assignTeamToPendingPairs, isRunning]
   );
 
   const leftSidebarItems = useMemo(
@@ -688,7 +691,7 @@ export default function Index() {
             setShowAllDots={setShowAllDots}
             showAllDots={showAllDots}
           />
-          {wayOfKick == "" && (
+          {wayOfKick === "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">
               <TouchableOpacity
                 onPress={async () => {
@@ -818,7 +821,7 @@ export default function Index() {
               onClickItem={(item) =>
                 handleItemClick(item, team[wayOfKick === "left" ? 0 : 1])
               }
-              isOpen={isLeftDropdownOpen}
+              isOpen={isRightDropdownOpen}
               onToggle={() => {
                 // do nothing
               }}

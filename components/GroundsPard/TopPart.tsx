@@ -1,4 +1,5 @@
 import {
+  api as apiSlice,
   useGetGameDataQuery,
   useGetQuaterDataQuery,
   useSendQuaterDataMutation,
@@ -9,7 +10,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Octicons from "@expo/vector-icons/Octicons";
 import { skipToken } from "@reduxjs/toolkit/query";
 import * as SecureStore from "expo-secure-store";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import AppModal from "../ui/Modals/ModalScaliton";
@@ -43,6 +44,7 @@ interface PropIntrface {
   updateHistory: any;
   setShowAllDots: any;
   showAllDots: any;
+  // sidebar callbacks removed to prevent auto-opening
 }
 
 export default function TopPart({
@@ -85,8 +87,9 @@ export default function TopPart({
   const [reportQuarter, setReportQuarter] = useState<
     "1" | "2" | "3" | "4" | null | string
   >(null);
-  const [submitQuaterData, { isLoading: issubmitQuaterLoading }] =
-    useSendQuaterDataMutation();
+  // track which report (quarter id 'a'|'b'|'c'|'d' or 'final') we requested
+  const reportRequestedRef = useRef<string | null>(null);
+  const [submitQuaterData] = useSendQuaterDataMutation();
   const {
     data: quaterData,
     isLoading: isQuaterDataLoading,
@@ -95,10 +98,27 @@ export default function TopPart({
   } = useGetQuaterDataQuery(
     game_id && reportQuarter ? { game_id, quater_id: reportQuarter } : skipToken
   );
+  // Lazy fetch for arbitrary quarters when building final report
+  // helper to fetch a quarter via the api endpoints initiate method
+  const fetchQuarter = async (gameId: string, quarterId: string) => {
+    try {
+      const promise = apiSlice.endpoints.getQuaterData.initiate({
+        game_id: gameId,
+        quater_id: quarterId,
+      });
+      const res: any = await promise;
+      // If RTK Query returns an object with data, return it
+      return res?.data ?? null;
+    } catch (err) {
+      console.log("fetchQuarter error", err);
+      return null;
+    }
+  };
   const {
     data: gameData,
     isLoading: isGameDataLoading,
     error: gameDataError,
+    refetch: refetchGame,
   } = useGetGameDataQuery(game_id ?? skipToken);
 
   // Log query state for debugging
@@ -150,6 +170,8 @@ export default function TopPart({
     setClicks(clickEvents); // Update clicks state
     updateHistory(clickEvents); // Assuming filtered data is complete
     console.log("Clicks updated with filtered data:", clickEvents);
+    // Do not auto-open sidebars here. Parent will decide whether to open
+    // a sidebar after it receives the filtered data.
   };
 
   // Fetch game report for the specified quarter or final report
@@ -158,41 +180,57 @@ export default function TopPart({
       const id = await SecureStore.getItemAsync("game_id");
       if (id) {
         setGameId(id);
-        let quater_id: "a" | "b" | "c" | "d";
-        switch (quarter) {
-          case "1":
-            quater_id = "a";
-            break;
-          case "2":
-            quater_id = "b";
-            break;
-          case "3":
-            quater_id = "c";
-            break;
-          case "4":
-            quater_id = "d";
-            break;
-          default:
-            quater_id = "a"; // Fallback
-        }
+        const quarterNumberToLetter = (q: string) => {
+          switch (q) {
+            case "1":
+              return "a" as const;
+            case "2":
+              return "b" as const;
+            case "3":
+              return "c" as const;
+            case "4":
+              return "d" as const;
+            default:
+              return "a" as const;
+          }
+        };
+        const quater_id = quarterNumberToLetter(quarter);
+        // set which quarter the UI requested; use 'final' for quarter 4
+        reportRequestedRef.current = quarter === "4" ? "final" : quater_id;
         setReportQuarter(quarter === "4" ? null : quater_id);
+        // If the user requested the final report, ensure the current
+        // quarter (quarter 4) is submitted first, then refetch latest
+        // aggregated game data so the final report contains all quarters.
         if (quarter === "4") {
-          if (!isGameDataLoading && gameData && !gameDataError) {
-            const processedData = processGameData(gameData);
-            setReportVisible(true);
-            console.log("Processed Game Data:", processedData);
-          } else if (gameDataError) {
-            setSubmitError("Failed to load game data");
+          try {
+            // Try to submit current quarter data; if submission is skipped
+            // (e.g., showAllDots true) handleSubmitQuarterData will return true.
+            const submitted = await handleSubmitQuarterData();
+            if (!submitted) {
+              // If submitting failed, show warning and abort opening final report
+              setSubmitError("Failed to submit final quarter before report");
+              setSkipWarningVisible(true);
+              return;
+            }
+          } catch (err) {
+            console.log("Error submitting quarter before final report:", err);
+            setSubmitError("Failed to submit final quarter before report");
             setSkipWarningVisible(true);
+            return;
           }
-        } else {
-          if (!isQuaterDataLoading && quaterData && !quaterDataError) {
-            setReportVisible(true);
-          } else if (quaterDataError) {
-            setSubmitError("Failed to load quarter data");
-            setSkipWarningVisible(true);
+
+          if (typeof refetchGame === "function") {
+            try {
+              refetchGame();
+            } catch (err) {
+              console.log("refetchGame error:", err);
+            }
           }
         }
+        // We don't open the modal immediately here because query state
+        // may not be updated synchronously. The effect below will open
+        // the modal when the requested data arrives (and matches the
+        // requested quarter identifier stored in reportRequestedRef).
       } else {
         setSubmitError("No game ID found");
         setSkipWarningVisible(true);
@@ -211,27 +249,95 @@ export default function TopPart({
     }
   }, [game_id, reportQuarter, refetch]);
 
+  const [finalDataState, setFinalDataState] = useState<any | null>(null);
+
   // Open StrategyModal when data is ready
   useEffect(() => {
-    if (
-      game_id &&
-      !isGameDataLoading &&
-      gameData &&
-      !gameDataError &&
-      !reportQuarter
-    ) {
-      setReportVisible(true);
-    } else if (
-      game_id &&
-      reportQuarter &&
-      !isQuaterDataLoading &&
-      quaterData &&
-      !quaterDataError
-    ) {
-      setReportVisible(true);
-    } else if (quaterDataError || gameDataError) {
-      setSubmitError("Failed to load data");
-      setSkipWarningVisible(true);
+    // Only open the modal when the data that we requested arrives.
+    // reportRequestedRef.current is either 'a'|'b'|'c'|'d' or 'final'.
+    try {
+      const requested = reportRequestedRef.current;
+      if (!requested) return;
+
+      if (requested === "final") {
+        if (!isGameDataLoading && gameData && !gameDataError) {
+          // read available quarters
+          const qA = gameData.data?.quarter_a ?? [];
+          const qB = gameData.data?.quarter_b ?? [];
+          const qC = gameData.data?.quarter_c ?? [];
+          const qD = gameData.data?.quarter_d ?? [];
+
+          const missingIds: string[] = [];
+          if (!qA || qA.length === 0) missingIds.push("a");
+          if (!qB || qB.length === 0) missingIds.push("b");
+          if (!qC || qC.length === 0) missingIds.push("c");
+          if (!qD || qD.length === 0) missingIds.push("d");
+
+          if (missingIds.length === 0) {
+            // All quarters present — use the server data
+            const merged = processGameData(gameData);
+            setFinalDataState(merged);
+            // populate parent clicks so the main court displays all points
+            try {
+              setClicks(merged.data || []);
+              if (updateHistory) updateHistory(merged.data || []);
+              if (setShowAllDots) setShowAllDots(true);
+            } catch (err) {
+              console.log("Error applying final report to court:", err);
+            }
+            setReportVisible(true);
+            reportRequestedRef.current = null;
+          } else {
+            // Fetch missing quarter data in parallel
+            Promise.all(
+              missingIds.map((id) => fetchQuarter(String(game_id), id))
+            )
+              .then((results) => {
+                const merged: any[] = [];
+                merged.push(...(qA || []));
+                merged.push(...(qB || []));
+                merged.push(...(qC || []));
+                merged.push(...(qD || []));
+                results.forEach((r) => {
+                  if (r && r.data) merged.push(...r.data);
+                });
+                const mergedObj = { data: merged };
+                setFinalDataState(mergedObj);
+                try {
+                  setClicks(mergedObj.data || []);
+                  if (updateHistory) updateHistory(mergedObj.data || []);
+                  if (setShowAllDots) setShowAllDots(true);
+                } catch (err) {
+                  console.log("Error applying fetched quarters to court:", err);
+                }
+                setReportVisible(true);
+                reportRequestedRef.current = null;
+              })
+              .catch((err) => {
+                console.log("Error fetching missing quarters:", err);
+                setSubmitError("Failed to load full final report");
+                setSkipWarningVisible(true);
+                reportRequestedRef.current = null;
+              });
+          }
+        } else if (gameDataError) {
+          setSubmitError("Failed to load game data");
+          setSkipWarningVisible(true);
+          reportRequestedRef.current = null;
+        }
+      } else {
+        // requested is a quarter id like 'a'|'b'|'c'|'d'
+        if (!isQuaterDataLoading && quaterData && !quaterDataError) {
+          setReportVisible(true);
+          reportRequestedRef.current = null;
+        } else if (quaterDataError) {
+          setSubmitError("Failed to load quarter data");
+          setSkipWarningVisible(true);
+          reportRequestedRef.current = null;
+        }
+      }
+    } catch (err) {
+      console.log("Error opening report modal:", err);
     }
   }, [
     quaterData,
@@ -242,7 +348,13 @@ export default function TopPart({
     gameDataError,
     game_id,
     reportQuarter,
+    setClicks,
+    setShowAllDots,
+    updateHistory,
   ]);
+
+  // finalDataState will contain merged quarter data when we fetched missing
+  // quarters for the final report. If null, fallback to server gameData.
 
   // Submit quarter data
   const handleSubmitQuarterData = async () => {
@@ -258,20 +370,21 @@ export default function TopPart({
     try {
       const game_id = await SecureStore.getItemAsync("game_id");
       let quater_name;
-      switch (value) {
-        case "1":
-          quater_name = "a";
-          break;
-        case "2":
-          quater_name = "b";
-          break;
-        case "3":
-          quater_name = "c";
-          break;
-        case "4":
-          quater_name = "d";
-          break;
-      }
+      const quarterNumberToLetter = (q: string) => {
+        switch (q) {
+          case "1":
+            return "a" as const;
+          case "2":
+            return "b" as const;
+          case "3":
+            return "c" as const;
+          case "4":
+            return "d" as const;
+          default:
+            return "a" as const;
+        }
+      };
+      quater_name = quarterNumberToLetter(value);
       const res = await submitQuaterData({
         game_id,
         quarter_name: quater_name,
@@ -320,7 +433,7 @@ export default function TopPart({
       interval = setInterval(() => setTime((prev) => prev + 1), 1000);
     }
     return () => clearInterval(interval);
-  }, [isRunning]);
+  }, [isRunning, setTime]);
 
   // Handle dropdown change
   const changeQuarterDropdownValue = (item: {
@@ -479,8 +592,8 @@ export default function TopPart({
             Submit Quarter {value}?
           </Text>
           <Text className="text-gray-600 mb-6 text-center">
-            Once submitted, you cannot edit this quarter's data. Are you sure
-            you want to submit?
+            Once submitted, you cannot edit this quarter&apos;s data. Are you
+            sure you want to submit?
           </Text>
           <View className="flex-row gap-4">
             <TouchableOpacity
@@ -623,6 +736,7 @@ export default function TopPart({
                 setWayOfKick("");
                 clearHistory();
                 setWornNextQ(true);
+                setClicks([]);
               }}
             >
               <Text className="text-gray-600">Reset Game</Text>
@@ -648,12 +762,13 @@ export default function TopPart({
           data={
             reportQuarter
               ? quaterData || []
-              : processGameData(gameData) || { data: [] }
+              : finalDataState || processGameData(gameData) || { data: [] }
           }
           visible={isReportVisible}
           onClose={() => {
             setReportVisible(false);
             setReportQuarter(null);
+            reportRequestedRef.current = null;
           }}
           onStrategySelect={handleStrategySelect} // Pass callback
           setShowAllDots={setShowAllDots}

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import { Provider } from "react-redux";
 import "../global.css";
+import SplashScreen from "./SplashScreen";
 
 export default function RootLayout() {
   const [splash, setSplash] = useState(true);
@@ -27,8 +28,8 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={DarkTheme}>
       <Provider store={store}>
-        {/* {splash ? <SplashScreen /> : <Slot />} */}
-        <Slot />
+        {splash ? <SplashScreen /> : <Slot />}
+        {/* <Slot /> */}
       </Provider>
       <StatusBar style="auto" />
     </ThemeProvider>

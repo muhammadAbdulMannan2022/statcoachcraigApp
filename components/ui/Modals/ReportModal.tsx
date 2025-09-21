@@ -24,7 +24,7 @@ type Props = {
   onClose: () => void;
   data?: { data?: DataItem[] } | DataItem[];
   isLoading: boolean;
-  onStrategySelect: (filteredData: DataItem[]) => void; // New callback prop
+  onStrategySelect: (filteredData: DataItem[]) => void; // callback prop
   setShowAllDots: any;
 };
 
@@ -35,6 +35,7 @@ export default function StrategyModal({
   isLoading,
   onStrategySelect,
   setShowAllDots,
+  // onSelectionTeam removed to avoid auto-opening sidebars
 }: Props) {
   // Normalize and aggregate data
   const aggregated = useMemo(() => {
@@ -63,9 +64,13 @@ export default function StrategyModal({
     const rawData: DataItem[] = Array.isArray(data) ? data : (data?.data ?? []);
     const filteredData = rawData.filter((item) => item.item === strategy);
     console.log(`Filtered data for strategy "${strategy}":`, filteredData);
-    onStrategySelect(filteredData); // Pass filtered data to parent
-    onClose();
+    // First set heatmap state and notify parent of the selection
     setShowAllDots(true);
+    onStrategySelect(filteredData); // Pass filtered data to parent
+    // Do not auto-open sidebars from the modal. Parent will decide whether
+    // to open a sidebar after receiving `filteredData` via `onStrategySelect`.
+    // Close modal last to avoid any race between parent state updates and modal visibility
+    onClose();
   };
 
   const renderRow = ({

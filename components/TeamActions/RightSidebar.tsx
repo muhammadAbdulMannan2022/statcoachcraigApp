@@ -136,7 +136,7 @@ export default function RightSidebar({
       duration: 250,
       useNativeDriver: true,
     }).start();
-  }, [isOpen]);
+  }, [isOpen, translateX]);
 
   return (
     <>
@@ -176,8 +176,8 @@ export default function RightSidebar({
               </Text>
             )}
 
-            {items.map((item, i) => (
-              <SideBarItem key={i} time={item.time} action={item.action} />
+            {(data || items).map((item: any, i: number) => (
+              <SideBarItem key={i} time={item.time} action={item.item} />
             ))}
           </ScrollView>
 
