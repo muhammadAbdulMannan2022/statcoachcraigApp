@@ -441,13 +441,12 @@ export default function Index() {
   const leftSidebarItems = useMemo(
     () =>
       clicks
-        .filter((click) => click.isComplete && click.team === "Script HQ")
+        .filter((click) => click.isComplete && click.team === "MY TEAM")
         .map((click) => ({
           time: click.time,
           action:
             QuaterData.find((item) => item.value === click.item)?.label ||
             click.item,
-          team: click.team,
         })),
     [clicks, QuaterData]
   );
@@ -455,7 +454,7 @@ export default function Index() {
   const rightSidebarItems = useMemo(
     () =>
       clicks
-        .filter((click) => click.isComplete && click.team === "Script RH")
+        .filter((click) => click.isComplete && click.team === "OTHER TEAM")
         .map((click) => ({
           time: click.time,
           action:
@@ -579,6 +578,8 @@ export default function Index() {
             updateHistory={updateHistory}
             setShowAllDots={setShowAllDots}
             showAllDots={showAllDots}
+            setCompletedLines={setCompletedLines}
+            setQuarteredClicks={setQuarteredClicks}
           />
           {wayOfKick === "" && (
             <View className="mx-auto justify-between items-center flex-row mt-6 gap-6 absolute top-24 z-50">

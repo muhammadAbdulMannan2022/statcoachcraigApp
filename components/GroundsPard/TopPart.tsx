@@ -44,7 +44,8 @@ interface PropIntrface {
   updateHistory: any;
   setShowAllDots: any;
   showAllDots: any;
-  // sidebar callbacks removed to prevent auto-opening
+  setCompletedLines: any;
+  setQuarteredClicks: any;
 }
 
 export default function TopPart({
@@ -65,6 +66,8 @@ export default function TopPart({
   updateHistory,
   setShowAllDots,
   showAllDots,
+  setCompletedLines,
+  setQuarteredClicks,
 }: PropIntrface) {
   const QuaterData = [
     { label: "Quarter 1", value: "1" },
@@ -168,6 +171,9 @@ export default function TopPart({
     const clickEvents = filteredData as ClickEvent[];
     clearHistory(); // Clear existing history to start fresh
     setClicks(clickEvents); // Update clicks state
+    setQuarteredClicks([]); // Clear archived to show only filtered
+    setShowAllDots(true);
+    setCompletedLines([]);
     updateHistory(clickEvents); // Assuming filtered data is complete
     console.log("Clicks updated with filtered data:", clickEvents);
     // Do not auto-open sidebars here. Parent will decide whether to open
