@@ -656,8 +656,34 @@ export default function Index() {
         />
       );
     });
+    // Add lines for all inside_50 clicks with position2
+    let dotsToRender: ClickEvent[] = [];
+    if (showAllDots) {
+      const archived = quarteredClicks
+        .slice(-3) // limit to last 3 archived quarters
+        .reduce((acc, q) => acc.concat(q.clicks), [] as ClickEvent[]);
+      dotsToRender = [...archived, ...clicks];
+    } else {
+      dotsToRender = clicks.slice(-1);
+    }
+    const limited = dotsToRender.slice(-200); // cap rendering
+    limited.forEach((click, index) => {
+      if (click.item === "inside_50" && click.position2) {
+        lines.push(
+          <Line
+            key={`inside50-${index}`}
+            x1={click.position.x}
+            y1={click.position.y}
+            x2={click.position2.x}
+            y2={click.position2.y}
+            stroke="red"
+            strokeWidth="2"
+          />
+        );
+      }
+    });
     return lines.length > 0 ? lines : null;
-  }, [currentLine, completedLines]);
+  }, [currentLine, completedLines, showAllDots, quarteredClicks, clicks]);
 
   return (
     <View className="flex-1 w-full h-full">

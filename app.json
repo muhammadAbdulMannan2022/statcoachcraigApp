@@ -3,7 +3,7 @@
     "name": "Stat Coach Live",
     "slug": "stat_coach_live",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "stat_coach_live",
     "userInterfaceStyle": "automatic",
