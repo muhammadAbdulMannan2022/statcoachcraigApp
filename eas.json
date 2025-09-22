@@ -11,12 +11,13 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "prebuildCommand": "npx expo prebuild --clean"
     },
     "production": {
       "distribution": "store",
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },

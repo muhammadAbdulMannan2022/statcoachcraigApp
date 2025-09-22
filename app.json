@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "stat_coach_live",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
